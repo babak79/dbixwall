@@ -221,7 +221,7 @@ namespace Etherwall {
 
     bool EtherIPC::getHardForkReady() const {
         const int vn = parseVersionNum();
-        return ( vn >= 104010 );
+        return ( vn >= 102040 );
     }
 
     const QString& EtherIPC::getError() const {
@@ -718,10 +718,11 @@ namespace Etherwall {
     }
 
     int EtherIPC::parseVersionNum() const {
-        QRegExp reg("^Geth/v([0-9]+)\\.([0-9]+)\\.([0-9]+).*$");
+        QRegExp reg("^[A-z]+\\/{1,2}v([0-9]+)\\.([0-9]+)\\.([0-9]+).*$");
         reg.indexIn(fClientVersion);
-        if ( reg.captureCount() == 3 ) try { // it's geth
-            return reg.cap(1).toInt() * 100000 + reg.cap(2).toInt() * 1000 + reg.cap(3).toInt();
+        if ( reg.captureCount() == 3 ) try { // it's parsed
+            int version = reg.cap(1).toInt() * 100000 + reg.cap(2).toInt() * 1000 + reg.cap(3).toInt();
+            return version;
         } catch ( ... ) {
             return 0;
         }
@@ -920,13 +921,9 @@ namespace Etherwall {
         fClientVersion = jv.toString();
 
         const int vn = parseVersionNum();
-        if ( vn > 0 && vn < 100002 ) {
-            setError("Geth version 1.0.1 and older contain a critical bug! Please update immediately.");
-            emit error();
-        }
 
-        if ( vn > 0 && vn < 103005 ) {
-            setError("Geth version 1.3.4 and older are Frontier versions. Please update to Homestead (1.3.5+)");
+        if ( vn > 0 && vn < 102004 ) {
+            setError("Parity version 1.2.3 and older contain critical vulnerabilities. Please update right away.");
             emit error();
         }
 
