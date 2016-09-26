@@ -103,6 +103,7 @@ namespace Etherwall {
         bool getTestnet() const;
         const QString getNetworkPostfix() const;
         quint64 blockNumber() const;
+        ClientType getClientType() const;
     public slots:
         void init();
         void waitConnect();
@@ -214,7 +215,7 @@ namespace Etherwall {
 
         void onTimer();
         bool killGeth();
-        int parseVersionNum() const;
+        int parseVersionNum(QString& clientName) const;
         void getSyncing();
         void getFilterChanges(const QString& filterID);
         void getClientVersion();

@@ -38,6 +38,8 @@ namespace Etherwall {
         static void importAddresses(QByteArray& data, const QDir& keystore);
         static const QByteArray createBackup(const QDir& keystore);
         static void restoreBackup(QByteArray& data, const QDir& keystore);
+        static const QDir getKeystoreDir(bool testnet);
+        static ClientType sClientType;
     };
 
     class QmlHelpers : public QObject

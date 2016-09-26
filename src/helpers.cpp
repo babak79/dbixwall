@@ -12,6 +12,8 @@ namespace Etherwall {
 
 // ***************************** Helpers ***************************** //
 
+    ClientType Helpers::sClientType = ClientUnknown;
+
     const QString Helpers::toDecStr(const QJsonValue& jv) {
         std::string hexStr = jv.toString("0x0").remove(0, 2).toStdString();
         const BigInt::Vin bv(hexStr, 16);
@@ -260,10 +262,11 @@ namespace Etherwall {
             address = address.remove(0, 2);
         }
 
-        const QStringList nameFilter("UTC*");
+        const QStringList nameFilter("*");
 
         foreach ( const QString fileName, keystore.entryList(nameFilter) ) {
             QFile file(keystore.filePath(fileName));
+            if ( !file.exists() || !file.isReadable() ) continue;
             file.open(QFile::ReadOnly);
             const QByteArray raw = file.readAll();
             file.close();
@@ -288,10 +291,11 @@ namespace Etherwall {
             address = address.remove(0, 2);
         }
 
-        const QStringList nameFilter("UTC*");
+        const QStringList nameFilter("*");
 
         foreach ( const QString fileName, keystore.entryList(nameFilter) ) {
             QFile file(keystore.filePath(fileName));
+            if ( !file.exists() || !file.isReadable() ) continue;
             file.open(QFile::ReadOnly);
             const QByteArray raw = file.readAll();
             file.close();
@@ -313,10 +317,11 @@ namespace Etherwall {
 
         QByteArray result;
         QDataStream stream(&result, QIODevice::WriteOnly);
-        const QStringList nameFilter("UTC*");
+        const QStringList nameFilter("*");
 
         foreach ( const QString fileName, keystore.entryList(nameFilter) ) {
             QFile file(keystore.filePath(fileName));
+            if ( !file.exists() || !file.isReadable() ) continue;
             file.open(QFile::ReadOnly);
             const QByteArray raw = file.readAll();
             file.close();
@@ -338,9 +343,10 @@ namespace Etherwall {
 
     void Helpers::importAddresses(QByteArray &data, const QDir& keystore) {
         QStringList existingList;
-        const QStringList nameFilter("UTC*");
+        const QStringList nameFilter("*");
         foreach ( const QString fileName, keystore.entryList(nameFilter) ) {
             QFile file(keystore.filePath(fileName));
+            if ( !file.exists() || !file.isReadable() ) continue;
             file.open(QFile::ReadOnly);
             const QByteArray raw = file.readAll();
             file.close();
@@ -381,12 +387,10 @@ namespace Etherwall {
         const QByteArray addressData = exportAddresses(keystore);
         QByteArray testnetData;
 
-        QDir testnet(keystore);
-        // can't use && because C++ doesn't enforce execution order AFAIK
-        if ( testnet.cd("../testnet") ) {
-            if ( testnet.cd("keystore") ) {
-                testnetData = exportAddresses(testnet);
-            }
+        try {
+            testnetData = exportAddresses(getKeystoreDir(true));
+        } catch ( QString err ) { // probably just non-existing testnet subdir
+            qDebug() << err << "\n";
         }
 
         QByteArray all; // all without checksum
@@ -408,8 +412,9 @@ namespace Etherwall {
             allStream << testnetData;
         }
 
-        quint32 allSize = all.size();
+        quint16 version = sClientType; // version 1 doesn't have this! This protects import on mismatched versions via the CRC
         quint16 crc = qChecksum(all.data(), all.size());
+        resultStream << version;
         resultStream << allSize;
         resultStream << crc;
         resultStream << all;
@@ -421,8 +426,14 @@ namespace Etherwall {
         QByteArray raw = qUncompress(data);
         QDataStream totalStream(&raw, QIODevice::ReadOnly);
 
+        quint16 version;
         quint32 allSize;
         quint16 crc;
+        totalStream >> version;
+        if ( version != 2 ) {
+            throw QString("Invalid backup version. Etherwall version 2.x backups only. Use Etherwall 1.x to restore version 1 backups.");
+        }
+
         totalStream >> allSize;
         totalStream >> crc;
         QByteArray all(allSize, '\0');
@@ -460,11 +471,44 @@ namespace Etherwall {
         if ( testnetData.size() > 0 ) {
             if ( !testnet.cd("..") ) throw QString("Unable to reach main datadir");
             testnet.mkdir("testnet");
-            if ( !testnet.cd("testnet") ) throw QString("Unable to reach testnet datadir");;
+            if ( !testnet.cd("testnet") ) throw QString("Unable to reach testnet datadir");
             testnet.mkdir("keystore");
-            if ( !testnet.cd("keystore") ) throw QString("Unable to reach testnet keystore");;
+            if ( !testnet.cd("keystore") ) throw QString("Unable to reach testnet keystore");
             importAddresses(testnetData, testnet);
         }
+    }
+
+    const QDir Helpers::getKeystoreDir(bool testnet) {
+        if ( sClientType == ClientUnknown ) {
+            throw QString("Unknown client type at keystore retrieval");
+        }
+
+        const QSettings settings;
+        const QString path = settings.value("geth/datadir").toString();
+        QDir keystore(path);
+
+        QString keysSubdir;
+        if ( testnet ) { // testnet needs special keys subdirs
+            if ( sClientType == ClientGeth ) {
+                keysSubdir = "testnet/keystore";
+            } else if ( sClientType == ClientParity ) {
+                keysSubdir = "keys_testnet";
+            }
+            if ( !keystore.cd(keysSubdir) ) {
+                throw QString("Keystore not found: " + keystore.absoluteFilePath(keysSubdir));
+            }
+        } else {
+            if ( sClientType == ClientGeth ) {
+                keysSubdir = "keystore";
+            } else if ( sClientType == ClientParity ) {
+                keysSubdir = "keys";
+            }
+            if ( !keystore.cd(keysSubdir) ) {
+                throw QString("Keystore not found: " + keystore.absoluteFilePath(keysSubdir));
+            }
+        }
+
+        return keystore;
     }
 
     // ***************************** QmlHelpers ***************************** //

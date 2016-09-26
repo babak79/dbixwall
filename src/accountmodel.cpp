@@ -146,13 +146,7 @@ namespace Etherwall {
             return false;
         }
 
-        const QSettings settings;
-        QDir keystore(settings.value("geth/datadir").toString());
-        if ( fIpc.getTestnet() ) {
-            keystore.cd("testnet");
-        }
-        keystore.cd("keystore");
-
+        const QDir keystore = Helpers::getKeystoreDir(false);
         QString address = fAccountList.at(index).value(HashRole).toString();
         const QString data = Helpers::exportAddress(keystore, address);
         const QString fileName = Helpers::getAddressFilename(keystore, address);
@@ -169,9 +163,7 @@ namespace Etherwall {
     }
 
     void AccountModel::exportWallet(const QUrl& fileName) const {
-        const QSettings settings;
-        QDir keystore(settings.value("geth/datadir").toString());
-        keystore.cd("keystore");
+        const QDir keystore = Helpers::getKeystoreDir(false);
 
         try {
             QByteArray backupData = Helpers::createBackup(keystore);
@@ -198,10 +190,8 @@ namespace Etherwall {
     }
 
     void AccountModel::importWallet(const QUrl& fileName) {
-        const QSettings settings;
         try {
-            QDir keystore(settings.value("geth/datadir").toString());
-            keystore.cd("keystore");
+            const QDir keystore = Helpers::getKeystoreDir(false);
             QFile file(fileName.toLocalFile());
             if ( !file.exists() ) {
                 throw QString("Wallet backup file not found");

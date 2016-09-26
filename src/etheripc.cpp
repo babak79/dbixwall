@@ -220,8 +220,9 @@ namespace Etherwall {
     }
 
     bool EtherIPC::getHardForkReady() const {
-        const int vn = parseVersionNum();
-        return ( vn >= 102040 );
+        QString clientName;
+        const int vn = parseVersionNum(clientName);
+        return ( clientName == "Geth" && vn >= 104010 ) || ( clientName == "Parity" && vn >= 102040 );
     }
 
     const QString& EtherIPC::getError() const {
@@ -717,11 +718,13 @@ namespace Etherwall {
         }
     }
 
-    int EtherIPC::parseVersionNum() const {
-        QRegExp reg("^[A-z]+\\/{1,2}v([0-9]+)\\.([0-9]+)\\.([0-9]+).*$");
+    int EtherIPC::parseVersionNum(QString& clientName) const {
+        clientName = "Unknown";
+        QRegExp reg("^([A-z]+)\\/{1,2}v([0-9]+)\\.([0-9]+)\\.([0-9]+).*$");
         reg.indexIn(fClientVersion);
-        if ( reg.captureCount() == 3 ) try { // it's parsed
-            int version = reg.cap(1).toInt() * 100000 + reg.cap(2).toInt() * 1000 + reg.cap(3).toInt();
+        if ( reg.captureCount() == 4 ) try { // it's parsed
+            clientName = reg.cap(1);
+            int version = reg.cap(2).toInt() * 100000 + reg.cap(3).toInt() * 1000 + reg.cap(4).toInt();
             return version;
         } catch ( ... ) {
             return 0;
@@ -920,10 +923,23 @@ namespace Etherwall {
 
         fClientVersion = jv.toString();
 
-        const int vn = parseVersionNum();
+        QString clientName;
+        const int vn = parseVersionNum(clientName);
 
-        if ( vn > 0 && vn < 102004 ) {
-            setError("Parity version 1.2.3 and older contain critical vulnerabilities. Please update right away.");
+        if ( clientName == "Geth" ) {
+            Helpers::sClientType = ClientGeth;
+        } else if ( clientName == "Parity" ) {
+            Helpers::sClientType = ClientParity;
+        }
+
+        // version warning for nodes
+        if ( Helpers::sClientType == ClientGeth && vn > 0 && vn < 104011 ) {
+            setError(tr("Geth version 1.4.11 and older  contain critical vulnerabilities. Please update right away."));
+            emit error();
+        }
+
+        if ( Helpers::sClientType == ClientParity && vn > 0 && vn < 102004 ) {
+            setError(tr("Parity version 1.2.3 and older contain critical vulnerabilities. Please update right away."));
             emit error();
         }
 

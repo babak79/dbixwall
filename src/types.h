@@ -70,6 +70,12 @@ namespace Etherwall {
     const QString DefaultIPCPath(const QString& dataDir, bool testnet);
     const QString DefaultGethPath();
 
+    enum ClientType {
+        ClientUnknown = 0,
+        ClientGeth = 1,
+        ClientParity = 2
+    };
+
     enum LogRoles {
         MsgRole = Qt::UserRole + 1,
         DateRole,
