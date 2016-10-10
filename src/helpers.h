@@ -39,7 +39,6 @@ namespace Etherwall {
         static const QByteArray createBackup(const QDir& keystore);
         static void restoreBackup(QByteArray& data, const QDir& keystore);
         static const QDir getKeystoreDir(bool testnet);
-        static ClientType sClientType;
     };
 
     class QmlHelpers : public QObject
@@ -51,6 +50,8 @@ namespace Etherwall {
         Q_INVOKABLE const QString localURLToString(const QUrl& url) const;
         Q_INVOKABLE const QString exportAddress(const QString& address, bool testnet) const;
         Q_INVOKABLE int parseAppVersion(const QString& ver) const;
+        Q_INVOKABLE const QString selectedNodeTypeName() const;
+        Q_INVOKABLE const QString defaultNodeArgs() const;
     };
 
 }

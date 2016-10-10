@@ -171,7 +171,7 @@ namespace Etherwall {
             }
         }
 
-        quint64 day = settings.value("geth/logsize", 7200).toLongLong();
+        quint64 day = settings.value(SelectedNodeTypeName() + "/logsize", 7200).toLongLong();
         quint64 fromBlock = fIpc.blockNumber() > day ? fIpc.blockNumber() - day : 1;
 
         emit beforeLoadLogs();

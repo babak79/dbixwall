@@ -60,17 +60,17 @@ int main(int argc, char *argv[])
 
     Settings settings;
 
-    bool testnet = settings.value("geth/testnet", false).toBool();
-    const QString gethPath = settings.value("geth/path", DefaultGethPath()).toString();
-    const QString dataPath = settings.value("geth/datadir", DefaultDataDir).toString();
+    bool testnet = settings.value(SelectedNodeTypeName() + "/testnet", false).toBool();
+    const QString gethPath = settings.value(SelectedNodeTypeName() + "/path", DefaultNodeBinaryPath()).toString();
+    const QString dataPath = settings.value(SelectedNodeTypeName() + "/datadir", DefaultDataDir()).toString();
     const QString ipcPath = DefaultIPCPath(dataPath, testnet);
 
     // set defaults
-    if ( !settings.contains("geth/path") ) {
-        settings.setValue("geth/path", gethPath);
+    if ( !settings.contains(SelectedNodeTypeName() + "/path") ) {
+        settings.setValue(SelectedNodeTypeName() + "/path", gethPath);
     }
-    if ( !settings.contains("geth/datadir") ) {
-        settings.setValue("geth/datadir", dataPath);
+    if ( !settings.contains(SelectedNodeTypeName() + "/datadir") ) {
+        settings.setValue(SelectedNodeTypeName() + "/datadir", dataPath);
     }
 
     ClipboardAdapter clipboard;

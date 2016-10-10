@@ -12,7 +12,7 @@ namespace Etherwall {
 
 // ***************************** Helpers ***************************** //
 
-    ClientType Helpers::sClientType = ClientUnknown;
+    extern ClientType sClientType;
 
     const QString Helpers::toDecStr(const QJsonValue& jv) {
         std::string hexStr = jv.toString("0x0").remove(0, 2).toStdString();
@@ -218,7 +218,7 @@ namespace Etherwall {
         QByteArray result;
 
         foreach ( const QString key, settings.allKeys() ) {
-            if ( key.startsWith("alias/") || key.startsWith("geth/") || key.startsWith("ipc/") || key.startsWith("program") ||
+            if ( key.startsWith("alias/") || key.startsWith(SelectedNodeTypeName() + "/") || key.startsWith("ipc/") || key.startsWith("program") ||
                  key.startsWith("contracts/") || key.startsWith("filters/") || key.startsWith("transactions") ) {
                 result += key.toUtf8() + '\0' + settings.value(key, "invalid").toString().toUtf8() + '\0';
             }
@@ -413,7 +413,8 @@ namespace Etherwall {
         }
 
         quint16 version = sClientType; // version 1 doesn't have this! This protects import on mismatched versions via the CRC
-        quint16 crc = qChecksum(all.data(), all.size());
+        quint32 allSize = all.size();
+        quint16 crc = qChecksum(all.data(), allSize);
         resultStream << version;
         resultStream << allSize;
         resultStream << crc;
@@ -484,7 +485,7 @@ namespace Etherwall {
         }
 
         const QSettings settings;
-        const QString path = settings.value("geth/datadir").toString();
+        const QString path = settings.value(SelectedNodeTypeName() + "/datadir").toString();
         QDir keystore(path);
 
         QString keysSubdir;
@@ -527,7 +528,7 @@ namespace Etherwall {
 
     const QString QmlHelpers::exportAddress(const QString& address, bool testnet) const {
         const QSettings settings;
-        QDir keystore(settings.value("geth/datadir").toString());
+        QDir keystore(settings.value(SelectedNodeTypeName() + "/datadir").toString());
         if ( testnet ) {
             keystore.cd("testnet");
         }
@@ -539,6 +540,14 @@ namespace Etherwall {
 
     int QmlHelpers::parseAppVersion(const QString& ver) const {
         return Helpers::parseAppVersion(ver);
+    }
+
+    const QString QmlHelpers::selectedNodeTypeName() const {
+        return SelectedNodeTypeName();
+    }
+
+    const QString QmlHelpers::defaultNodeArgs() const {
+        return DefaultNodeArgs();
     }
 
 }

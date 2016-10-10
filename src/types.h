@@ -33,18 +33,7 @@
 
 namespace Etherwall {
 
-#ifdef Q_OS_WIN32
-    static const QString DefaultDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Ethereum";
-#else
-    #ifdef Q_OS_MACX
-    static const QString DefaultDataDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation) + "/Library/Ethereum";
-    #else
-    static const QString DefaultDataDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation) + "/.ethereum";
-    #endif
-#endif
-
     static const quint64 SYNC_DEPTH = 10;
-    static const QString DefaultGethArgs = "--fast --cache 512";
     static const QString EtherWall_Cert = "-----BEGIN CERTIFICATE-----\n"
             "MIIDiDCCAnACCQCXJXqGOlAorjANBgkqhkiG9w0BAQsFADCBhTELMAkGA1UEBhMC\n"
             "Q0ExEDAOBgNVBAgMB0FsYmVydGExEDAOBgNVBAcMB0NhbGdhcnkxEjAQBgNVBAoM\n"
@@ -67,14 +56,18 @@ namespace Etherwall {
             "JkX2TxeYmZl+B/qvVorfPzWK7NoalCBvIxyxBeI3e67Ly0lRWAGIsWEtQP4=\n"
             "-----END CERTIFICATE-----\n";
 
-    const QString DefaultIPCPath(const QString& dataDir, bool testnet);
-    const QString DefaultGethPath();
-
     enum ClientType {
         ClientUnknown = 0,
         ClientGeth = 1,
         ClientParity = 2
     };
+
+    const QString DefaultNodeArgs();
+    const QString DefaultIPCPath(const QString& dataDir, bool testnet);
+    const QString DefaultNodeBinaryPath();
+    const QString DefaultDataDir();
+    const QString SelectedNodeTypeName();
+    void SetupHardforkParams(bool hardfork, QStringList& args);
 
     enum LogRoles {
         MsgRole = Qt::UserRole + 1,

@@ -31,7 +31,9 @@
 namespace Etherwall {
 
 // *************************** RequestIPC **************************** //
+
     int RequestIPC::sCallID = 0;
+    extern ClientType sClientType;
 
     RequestIPC::RequestIPC(RequestBurden burden, RequestTypes type, const QString method, const QJsonArray params, int index) :
         fCallID(sCallID++), fType(type), fMethod(method), fParams(params), fIndex(index), fBurden(burden)
@@ -106,30 +108,26 @@ namespace Etherwall {
 
         const QSettings settings;
 
-        const QString progStr = settings.value("geth/path", DefaultGethPath()).toString();
-        const QString argStr = settings.value("geth/args", DefaultGethArgs).toString();
-        const QString ddStr = settings.value("geth/datadir", DefaultDataDir).toString();
+        const QString progStr = settings.value(SelectedNodeTypeName() + "/path", DefaultNodeBinaryPath()).toString();
+        const QString argStr = settings.value(SelectedNodeTypeName() + "/args", DefaultNodeArgs()).toString();
+        const QString ddStr = settings.value(SelectedNodeTypeName() + "/datadir", DefaultDataDir()).toString();
         QStringList args = (argStr + " --datadir " + ddStr).split(' ', QString::SkipEmptyParts);
-        bool testnet = settings.value("geth/testnet", false).toBool();
+        bool testnet = settings.value(SelectedNodeTypeName() + "/testnet", false).toBool();
         if ( testnet ) {
             args.append("--testnet");
         }
-        bool hardfork = settings.value("geth/hardfork", true).toBool();
-        if ( hardfork ) {
-            args.append("--support-dao-fork");
-        } else {
-            args.append("--oppose-dao-fork");
-        }
+        bool hardfork = settings.value(SelectedNodeTypeName() + "/hardfork", true).toBool();
+        SetupHardforkParams(hardfork, args);
 
         QFileInfo info(progStr);
         if ( !info.exists() || !info.isExecutable() ) {
             fStarting = -1;
             emit startingChanged(-1);
-            setError("Could not find Geth. Please check Geth path and try again.");
+            setError("Could not find " + SelectedNodeTypeName() + ". Please check " + SelectedNodeTypeName() + " path and try again.");
             return bail();
         }
 
-        EtherLog::logMsg("Geth starting " + progStr + " " + args.join(" "), LS_Info);
+        EtherLog::logMsg(SelectedNodeTypeName() + " starting " + progStr + " " + args.join(" "), LS_Info);
         fStarting = 2;
 
         fGethLog.attach(&fGeth);
@@ -168,7 +166,7 @@ namespace Etherwall {
         fSocket.connectToServer(fPath);
         if ( fConnectAttempts == 0 ) {
             if ( fStarting == 1 ) {
-                EtherLog::logMsg("Checking to see if there is an already running geth...");
+                EtherLog::logMsg("Checking to see if there is an already running " + SelectedNodeTypeName() + " at " + fPath);
             } else {
                 EtherLog::logMsg("Connecting to IPC socket " + fPath);
             }
@@ -188,7 +186,7 @@ namespace Etherwall {
         if ( fStarting == 1 ) {
             fExternal = true;
             emit externalChanged(true);
-            fGethLog.append("Attached to external geth, see logs in terminal window.");
+            fGethLog.append("Attached to external " + SelectedNodeTypeName() + ", see logs in terminal window.");
         }
         fStarting = 3;
         EtherLog::logMsg("Connected to IPC socket");
@@ -198,7 +196,7 @@ namespace Etherwall {
         if ( fSocket.state() != QLocalSocket::ConnectedState ) {
             fSocket.abort();
             fStarting = -1;
-            setError("Unable to establish IPC connection to Geth. Fix path to Geth and try again.");
+            setError("Unable to establish IPC connection to " + SelectedNodeTypeName() + ". Fix path to " + SelectedNodeTypeName() + " and try again.");
             bail();
         }
     }
@@ -244,7 +242,7 @@ namespace Etherwall {
 
     const QString EtherIPC::getNetworkPostfix() const {
         QSettings settings;
-        QString postfix = settings.value("geth/hardfork", true).toBool() ? "/eth" : "/etc";
+        QString postfix = settings.value(SelectedNodeTypeName() + "/hardfork", true).toBool() ? "/eth" : "/etc";
         if ( getTestnet() ) {
             postfix += "/morden";
         } else {
@@ -270,7 +268,7 @@ namespace Etherwall {
             fGeth.terminate();
 #endif
         } else if ( fKillTime.elapsed() > 6000 ) {
-            qDebug() << "Geth did not exit in 6 seconds. Killing...\n";
+            qDebug() << SelectedNodeTypeName() + " did not exit in 6 seconds. Killing...\n";
             fGeth.kill();
             return true;
         }
@@ -279,7 +277,9 @@ namespace Etherwall {
     }
 
     bool EtherIPC::closeApp() {
-        EtherLog::logMsg("Closing etherwall");
+        if ( !fClosingApp ) {
+            EtherLog::logMsg("Closing etherwall");
+        }
         fClosingApp = true;
         fTimer.stop();
         emit closingChanged(true);
@@ -927,18 +927,18 @@ namespace Etherwall {
         const int vn = parseVersionNum(clientName);
 
         if ( clientName == "Geth" ) {
-            Helpers::sClientType = ClientGeth;
+            sClientType = ClientGeth;
         } else if ( clientName == "Parity" ) {
-            Helpers::sClientType = ClientParity;
+            sClientType = ClientParity;
         }
 
         // version warning for nodes
-        if ( Helpers::sClientType == ClientGeth && vn > 0 && vn < 104011 ) {
+        if ( sClientType == ClientGeth && vn > 0 && vn < 104011 ) {
             setError(tr("Geth version 1.4.11 and older  contain critical vulnerabilities. Please update right away."));
             emit error();
         }
 
-        if ( Helpers::sClientType == ClientParity && vn > 0 && vn < 102004 ) {
+        if ( sClientType == ClientParity && vn > 0 && vn < 102004 ) {
             setError(tr("Parity version 1.2.3 and older contain critical vulnerabilities. Please update right away."));
             emit error();
         }

@@ -39,72 +39,154 @@ Window {
         setY(Screen.height / 2.0 - height / 2.0)
     }
 
-
     property bool done: false
 
-    Column {
-        anchors.margins: 0.1 * dpi
+    TabView {
+        id: mainView
         anchors.fill: parent
-        spacing: 0.25 * dpi
 
-        Text {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.margins: 0.2 * dpi
-            font.pixelSize: 0.2 * dpi
-            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-            text: qsTr("Please confirm options for Geth before running for the first time")
-        }
+        Tab {
+            title: qsTr("Node selection")
+            anchors.fill: parent
 
-        Text {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.margins: 0.2 * dpi
-            font.pixelSize: 0.2 * dpi
-            font.bold: true
-            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-            text: qsTr("Ethereum blockchain grows rapidly and requires at least 20GB of space. Make sure to choose an appropriate data directory with enough space left.")
-        }
-
-        SettingsContent {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: parent.height / 2.0
-        }
-
-        Row {
-            anchors.right: parent.right
-
-            Button {
-                id: continueButton
-                text: qsTr("Continue", "First time dialog")
+            Column {
                 anchors.margins: 0.1 * dpi
-                width: 1 * dpi
-                height: 0.6 * dpi
+                anchors.fill: parent
+                spacing: 0.25 * dpi
 
-                onClicked: {
-                    ipc.init();
-                    settings.setValue("program/firstrun", new Date())
-                    // set hf decision too so we don't get pestered
-                    settings.setValue("geth/hardfork", settings.value("geth/hardfork", true))
+                Label {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("Choose your node type")
+                    font.pixelSize: 0.2 * dpi
+                    font.bold: true
+                }
 
-                    ftWindow.close()
+                Item {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: 1 * dpi
+
+                    Image {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.horizontalCenterOffset: -parent.width / 4.0
+                        height: parent.height
+                        width: parent.height
+                        source: "/images/parity"
+                    }
+
+                    Image {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.horizontalCenterOffset: +parent.width / 4.0
+                        height: parent.height
+                        width: parent.height
+                        source: "/images/eth"
+                    }
+                }
+
+                Item {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: 1 * dpi
+
+                    Button {
+                        id: buttonParity
+                        anchors.left: parent.left
+                        width: parent.width / 2.0
+                        height: parent.height
+                        text: "Parity"
+                        onClicked: {
+                            nodeSetupTab.title = qsTr("Setup parity")
+                            nodeSetupTab.enabled = true
+                            mainView.currentIndex = 1
+                        }
+                    }
+
+                    Button {
+                        id: buttonGeth
+                        anchors.right: parent.right
+                        width: parent.width / 2.0
+                        height: parent.height
+                        text: "Geth"
+                        onClicked: {
+                            nodeSetupTab.title = qsTr("Setup geth")
+                            nodeSetupTab.enabled = true
+                            mainView.currentIndex = 1
+                        }
+                    }
                 }
             }
+        }
 
-            Button {
-                id: quitButton
-                text: qsTr("Quit", "First time dialog")
+        Tab {
+            id: nodeSetupTab
+            title: qsTr("setup")
+            enabled: false
+            anchors.fill: parent
+
+            Column {
                 anchors.margins: 0.1 * dpi
-                width: 1 * dpi
-                height: 0.6 * dpi
+                anchors.fill: parent
+                spacing: 0.25 * dpi
 
-                onClicked: {
-                    ftWindow.close()
-                    appWindow.close()
+                Text {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.margins: 0.2 * dpi
+                    font.pixelSize: 0.2 * dpi
+                    wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                    text: qsTr("Please confirm options for " + helpers.selectedNodeTypeName() + " before running for the first time")
+                }
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.margins: 0.2 * dpi
+                    font.pixelSize: 0.2 * dpi
+                    font.bold: true
+                    wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                    text: qsTr("Ethereum blockchain grows rapidly and requires at least 20GB of space. Make sure to choose an appropriate data directory with enough space left.")
+                }
+
+                SettingsContent {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: parent.height / 2.0
+                }
+
+                Row {
+                    anchors.right: parent.right
+
+                    Button {
+                        id: continueButton
+                        text: qsTr("Continue", "First time dialog")
+                        anchors.margins: 0.1 * dpi
+                        width: 1 * dpi
+                        height: 0.6 * dpi
+
+                        onClicked: {
+                            ipc.init();
+                            settings.setValue("program/firstrun", new Date())
+                            // set hf decision too so we don't get pestered
+                            settings.setValue(helpers.selectedNodeTypeName() + "/hardfork", settings.value(helpers.selectedNodeTypeName() + "/hardfork", true))
+
+                            ftWindow.close()
+                        }
+                    }
+
+                    Button {
+                        id: quitButton
+                        text: qsTr("Quit", "First time dialog")
+                        anchors.margins: 0.1 * dpi
+                        width: 1 * dpi
+                        height: 0.6 * dpi
+
+                        onClicked: {
+                            ftWindow.close()
+                            appWindow.close()
+                        }
+                    }
                 }
             }
         }
-
     }
 }

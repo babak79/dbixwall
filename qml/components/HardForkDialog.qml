@@ -77,7 +77,7 @@ Window {
                 height: 0.6 * dpi
 
                 onClicked: {
-                    settings.setValue("geth/hardfork", true)
+                    settings.setValue(helpers.selectedNodeTypeName() + "/hardfork", true)
                     hfWindow.close()
                 }
             }
@@ -85,7 +85,7 @@ Window {
             ErrorDialog {
                 id: hfConfirmDialog
                 title: qsTr("Warning")
-                msg: qsTr("Changing hard fork decision requires a restart of Etherwall (and geth if running externally).")
+                msg: qsTr("Changing hard fork decision requires a restart of Etherwall (and " + helpers.selectedNodeTypeName() + " if running externally).")
 
                 onAccepted: {
                     hfWindow.close()
@@ -101,7 +101,7 @@ Window {
                 height: 0.6 * dpi
 
                 onClicked: {
-                    settings.setValue("geth/hardfork", false)
+                    settings.setValue(helpers.selectedNodeTypeName() + "/hardfork", false)
                     hfConfirmDialog.show()
                 }
             }

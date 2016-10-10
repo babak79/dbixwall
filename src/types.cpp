@@ -31,25 +31,89 @@
 
 namespace Etherwall {
 
-    const QString DefaultIPCPath(const QString& dataDir, bool testnet) {
-    #ifdef Q_OS_WIN32
-        return "\\\\.\\pipe\\geth.ipc";
-    #else
-        const QString mid_fix = testnet ? "/testnet" : "";
-        return QDir::cleanPath(dataDir + mid_fix + "/geth.ipc");
-    #endif
+    ClientType sClientType = ClientParity;
+
+    const QString DefaultNodeArgs() {
+        switch ( sClientType ) {
+            case ClientGeth: return "--fast --cache 512";
+            case ClientParity: return "";
+            case ClientUnknown: return "";
+        }
     }
 
-    const QString DefaultGethPath() {
+    const QString DefaultIPCPath(const QString& dataDir, bool testnet) {
 #ifdef Q_OS_WIN32
-        return QApplication::applicationDirPath() + "/geth.exe";
+        return "\\\\.\\pipe\\geth.ipc";
 #else
-#ifdef Q_OS_MACX
-        return QApplication::applicationDirPath() + "/geth";
+        switch ( sClientType ) {
+            case ClientGeth: {
+                const QString mid_fix = testnet ? "/testnet" : "";
+                return QDir::cleanPath(dataDir + mid_fix + "/geth.ipc");
+            }
+            case ClientParity: return dataDir + "/jsonrpc.ipc";
+            case ClientUnknown: return "";
+        }
+#endif
+    }
+
+    const QString DefaultNodeBinaryPath() {
+#ifdef Q_OS_WIN32
+        switch ( sClientType ) {
+            case ClientGeth: return QApplication::applicationDirPath() + "/geth.exe";
+            case ClientParity: return QApplication::applicationDirPath() + "/parity.exe";
+            case ClientUnknown: return "";
+        }
 #else
-        return "/usr/bin/geth";
+    #ifdef Q_OS_MACX
+        switch ( sClientType ) {
+            case ClientGeth: return QApplication::applicationDirPath() + "/geth";
+            case ClientParity: return QApplication::applicationDirPath() + "/parity";
+            case ClientUnknown: return "";
+        }
+    #else
+        switch ( sClientType ) {
+            case ClientGeth: return "/usr/bin/geth";
+            case ClientParity: return "/usr/bin/parity"
+            case ClientUnknown: return "";
+        }
+    #endif
 #endif
+    }
+
+    const QString DefaultDataDir() {
+        if ( sClientType == ClientParity ) {
+            return QStandardPaths::writableLocation(QStandardPaths::HomeLocation) + "/.parity";
+        }
+
+#ifdef Q_OS_WIN32
+        return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Ethereum";
+#else
+    #ifdef Q_OS_MACX
+        return QStandardPaths::writableLocation(QStandardPaths::HomeLocation) + "/Library/Ethereum";
+    #else
+        return QStandardPaths::writableLocation(QStandardPaths::HomeLocation) + "/.ethereum";
+    #endif
 #endif
+    }
+
+    const QString SelectedNodeTypeName() {
+        switch ( sClientType ) {
+            case ClientGeth: return "geth";
+            case ClientParity: return "parity";
+            case ClientUnknown: return "unknown";
+        }
+    }
+
+    void SetupHardforkParams(bool hardfork, QStringList& args) {
+        switch ( sClientType ) {
+            case ClientGeth: hardfork ? args.append("--support-dao-fork") : args.append("--oppose-dao-fork"); break;
+            case ClientParity: {
+                args.append("--chain");
+                hardfork ? args.append("homestead") : args.append("homestead-dogmatic");
+                break;
+            }
+            case ClientUnknown: return;
+        }
     }
 
 // ***************************** LogInfo ***************************** //

@@ -221,7 +221,7 @@ ApplicationWindow {
     }
 
     HardForkDialog {
-        visible: !ipc.busy && !ipc.starting && !settings.contains("geth/hardfork") && settings.contains("program/firstrun") && ipc.hardForkReady
+        visible: !ipc.busy && !ipc.starting && !settings.contains(helpers.selectedNodeTypeName() + "/hardfork") && settings.contains("program/firstrun") && ipc.hardForkReady
     }
 
     TabView {
@@ -301,7 +301,7 @@ ApplicationWindow {
         Text {
             anchors.centerIn: parent
             visible: !ipc.syncing
-            text: ipc.closing ? qsTr("Closing app") : (ipc.starting ? qsTr("Starting Geth...") : qsTr("Ready"))
+            text: ipc.closing ? qsTr("Closing app") : (ipc.starting ? qsTr("Starting " + helpers.selectedNodeTypeName() + "...") : qsTr("Ready"))
         }
 
         Text {

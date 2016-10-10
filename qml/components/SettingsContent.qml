@@ -18,15 +18,15 @@ TabView {
 
                 Label {
                     id: gethDDLabel
-                    text: "Geth Data Directory: "
+                    text: "Node Data Directory: "
                 }
 
                 TextField {
                     id: gethDDField
                     width: parent.width - gethDDButton.width - gethDDLabel.width
-                    text: settings.value("geth/datadir", "")
+                    text: settings.value(helpers.selectedNodeTypeName() + "/datadir", "")
                     onTextChanged: {
-                        settings.setValue("geth/datadir", gethDDField.text)
+                        settings.setValue(helpers.selectedNodeTypeName() + "/datadir", gethDDField.text)
                     }
                 }
 
@@ -41,7 +41,7 @@ TabView {
 
                 FileDialog {
                     id: ddFileDialog
-                    title: qsTr("Geth data directory")
+                    title: qsTr("Node data directory")
                     selectFolder: true
                     selectExisting: true
                     selectMultiple: false
@@ -89,10 +89,10 @@ TabView {
                 ToggleButton {
                     id: hfButton
 
-                    checked: settings.valueBool("geth/hardfork", true)
+                    checked: settings.valueBool(helpers.selectedNodeTypeName() + "/hardfork", true)
                     text: checked ? qsTr("support") : qsTr("oppose")
                     onClicked: {
-                        settings.setValue("geth/hardfork", checked)
+                        settings.setValue(helpers.selectedNodeTypeName() + "/hardfork", checked)
                         if ( settings.contains("program/firstrun") ) {
                             hfConfirmDialog.show()
                         }
@@ -116,15 +116,15 @@ TabView {
 
                 Label {
                     id: gethPathLabel
-                    text: "Geth path: "
+                    text: "Node binary path: "
                 }
 
                 TextField {
                     id: gethPathField
                     width: parent.width - gethPathLabel.width - gethPathButton.width
-                    text: settings.value("geth/path", "")
+                    text: settings.value(helpers.selectedNodeTypeName() + "/path", "")
                     onTextChanged: {
-                        settings.setValue("geth/path", gethPathField.text)
+                        settings.setValue(helpers.selectedNodeTypeName() + "/path", gethPathField.text)
                     }
                 }
 
@@ -168,9 +168,9 @@ TabView {
 
                 CheckBox {
                     id: gethTestnetCheck
-                    checked: settings.valueBool("geth/testnet", false)
+                    checked: settings.valueBool(helpers.selectedNodeTypeName() + "/testnet", false)
                     onClicked: {
-                        settings.setValue("geth/testnet", gethTestnetCheck.checked)
+                        settings.setValue(helpers.selectedNodeTypeName() + "/testnet", gethTestnetCheck.checked)
                         if ( settings.contains("program/firstrun") ) {
                             confirmDialog.show()
                         }
@@ -184,15 +184,15 @@ TabView {
 
                 Label {
                     id: gethArgsLabel
-                    text: "Additional Geth args: "
+                    text: "Additional node args: "
                 }
 
                 TextField {
                     id: gethArgsField
                     width: parent.width - gethArgsLabel.width
-                    text: settings.value("geth/args", "--fast --cache 512")
+                    text: settings.value(helpers.selectedNodeTypeName() + "/args", helpers.defaultNodeArgs())
                     onTextChanged: {
-                        settings.setValue("geth/args", gethArgsField.text)
+                        settings.setValue(helpers.selectedNodeTypeName() + "/args", gethArgsField.text)
                     }
                 }
             }
@@ -211,9 +211,9 @@ TabView {
                     width: 1 * dpi
                     minimumValue: 0
                     maximumValue: 100000
-                    value: settings.value("geth/logsize", 7200)
+                    value: settings.value(helpers.selectedNodeTypeName() + "/logsize", 7200)
                     onValueChanged: {
-                        settings.setValue("geth/logsize", logBlocksField.value)
+                        settings.setValue(helpers.selectedNodeTypeName() + "/logsize", logBlocksField.value)
                         filterModel.loadLogs()
                     }
                 }
