@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file contractmodel.cpp
  * @author Ales Katona <almindor@gmail.com>
@@ -19,13 +19,13 @@
  */
 
 #include "contractmodel.h"
-#include "etherlog.h"
+#include "dbixlog.h"
 #include "helpers.h"
 #include <QSettings>
 #include <QJsonDocument>
 #include <QDebug>
 
-namespace Etherwall {
+namespace Dbixwall {
 
     PendingContract::PendingContract() {
         fName = "invalid";
@@ -37,18 +37,18 @@ namespace Etherwall {
     {
     }
 
-    ContractModel::ContractModel(EtherIPC& ipc) : QAbstractListModel(0), fList(), fIpc(ipc), fNetManager(), fBusy(false), fPendingContracts()
+    ContractModel::ContractModel(DbixIPC& ipc) : QAbstractListModel(0), fList(), fIpc(ipc), fNetManager(), fBusy(false), fPendingContracts()
     {
-        connect(&ipc, &EtherIPC::connectToServerDone, this, &ContractModel::reload);
-        connect(&ipc, &EtherIPC::newEvent, this, &ContractModel::onNewEvent);
+        connect(&ipc, &DbixIPC::connectToServerDone, this, &ContractModel::reload);
+        connect(&ipc, &DbixIPC::newEvent, this, &ContractModel::onNewEvent);
         connect(&fNetManager, SIGNAL(finished(QNetworkReply*)), this, SLOT(httpRequestDone(QNetworkReply*)));
     }
 
     QHash<int, QByteArray> ContractModel::roleNames() const {
         QHash<int, QByteArray> roles;
-        roles[ContractRoles::ContractNameRole] = "name";
-        roles[ContractRoles::AddressRole] = "address";
-        roles[ContractRoles::ABIRole] = "abi";
+        roles[ContractNameRole] = "name";
+        roles[AddressRole] = "address";
+        roles[ABIRole] = "abi";
 
         return roles;
     }
@@ -67,12 +67,12 @@ namespace Etherwall {
 
         // shouldn't happen as we check from QML
         if ( parseError.error != QJsonParseError::NoError ) {
-            EtherLog::logMsg("Error parsing new contract: " + parseError.errorString(), LS_Error);
+            DbixLog::logMsg("Error parsing new contract: " + parseError.errorString(), LS_Error);
             return false;
         }
 
         if ( !jsonDoc.isArray() ) {
-            EtherLog::logMsg("Contract ABI not an array", LS_Error);
+            DbixLog::logMsg("Contract ABI not an array", LS_Error);
             return false;
         }
 
@@ -120,18 +120,18 @@ namespace Etherwall {
     const QString ContractModel::contractDeployed(const QJsonObject& receipt) {
         const QString hash = receipt.value("transactionHash").toString("invalid");
         if ( hash == "invalid" ) {
-            EtherLog::logMsg("Contract deployment receipt missing transaction hash", LS_Error);
+            DbixLog::logMsg("Contract deployment receipt missing transaction hash", LS_Error);
             return QString();
         }
 
         if ( !fPendingContracts.contains(hash) ) {
-            EtherLog::logMsg("Contract deployment transaction hash mismatch", LS_Error);
+            DbixLog::logMsg("Contract deployment transaction hash mismatch", LS_Error);
             return QString();
         }
 
         const QString address = receipt.value("contractAddress").toString("invalid");
         if ( address == "invalid" || address.isEmpty() ) {
-            EtherLog::logMsg("Contract address invalid in tx receipt", LS_Error);
+            DbixLog::logMsg("Contract address invalid in tx receipt", LS_Error);
             return QString();
         }
 
@@ -168,6 +168,17 @@ namespace Etherwall {
         return fList.at(index).name();
     }
 
+    int ContractModel::getIndex(const QString name) const
+    {
+        for ( int i = 0; i < fList.size(); i++ ) {
+            if ( fList.at(i).name() == name ) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     const QString ContractModel::getAddress(int index) const {
         if ( index < 0 || index >= fList.size() ) {
             return QString();
@@ -200,7 +211,7 @@ namespace Etherwall {
         try {
             return fList.at(index).function(functionName).getMethodID();
         } catch ( QString err ) {
-            EtherLog::logMsg(err, LS_Error);
+            DbixLog::logMsg(err, LS_Error);
             return QString();
         }
     }
@@ -213,7 +224,7 @@ namespace Etherwall {
         try {
             return fList.at(index).function(functionName).getArgModel();
         } catch ( QString err ) {
-            EtherLog::logMsg(err, LS_Error);
+            DbixLog::logMsg(err, LS_Error);
             emit callError(err);
             return QVariantList();
         }
@@ -230,13 +241,16 @@ namespace Etherwall {
 
     void ContractModel::requestAbi(const QString& address) {
         // get contract ABI
-        QNetworkRequest request(QUrl("https://data.etherwall.com/api/contracts"));
+        QNetworkRequest request(QUrl("https://data.dbixwall.com/api/contracts"));
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         QJsonObject objectJson;
         objectJson["address"] = address;
+        if ( fIpc.getTestnet() ) {
+            objectJson["testnet"] = true;
+        }
         const QByteArray data = QJsonDocument(objectJson).toJson();
 
-        EtherLog::logMsg("HTTP Post request: " + data, LS_Debug);
+        DbixLog::logMsg("HTTP Post request: " + data, LS_Debug);
 
         fNetManager.post(request, data);
         fBusy = true;
@@ -254,7 +268,7 @@ namespace Etherwall {
             const QJsonDocument jsonDoc = QJsonDocument::fromJson(val.toUtf8(), &parseError);
 
             if ( parseError.error != QJsonParseError::NoError ) {
-                EtherLog::logMsg("Error parsing stored contract: " + parseError.errorString(), LS_Error);
+                DbixLog::logMsg("Error parsing stored contract: " + parseError.errorString(), LS_Error);
             } else {
                 const ContractInfo info(jsonDoc.object());
                 fList.append(info);

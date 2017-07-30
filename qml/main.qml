@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file main.qml
  * @author Ales Katona <almindor@gmail.com>
@@ -41,7 +41,7 @@ ApplicationWindow {
         setY(Screen.height / 2.0 - height / 2.0)
     }
 
-    title: qsTr("Etherdyne Ethereum Wallet") + (ipc.testnet ? " !TESTNET! " : " ") + Qt.application.version + ' [' + ipc.clientVersion + ']'
+    title: qsTr("Dbix Dubaicoin Wallet") + (ipc.testnet ? " !TESTNET! " : " ") + Qt.application.version + ' [' + ipc.clientVersion + ']'
 
     Timer {
         id: closeTimer
@@ -61,6 +61,50 @@ ApplicationWindow {
         }
     }
 
+    PinMatrixDialog {
+        id: pinMatrixDialog
+        // visible: true
+    }
+
+    ButtonRequestDialog {
+        id: buttonRequestDialog
+    }
+
+    PasswordDialog {
+        id: trezorPasswordDialog
+        title: qsTr("TREZOR passphrase")
+        msg: qsTr("Please provide your TREZOR passphrase")
+
+        onAccepted: {
+            trezor.submitPassphrase(password)
+        }
+
+        onRejected: {
+            trezor.cancel()
+        }
+    }
+
+    // Trezor main connections
+    Connections {
+        target: trezor
+        onMatrixRequest: pinMatrixDialog.open()
+        onButtonRequest: {
+            if ( code != 8 ) { // tx signing handled in signing windows
+                badge.show(badge.button_msg(code))
+            }
+        }
+        onPassphraseRequest: trezorPasswordDialog.open()
+        onFailure: {
+            errorDialog.msg = "TREZOR: " + error
+            errorDialog.open()
+        }
+        onError: {
+            log.log(error, 3)
+            errorDialog.msg = "TREZOR critical error: " + error
+            errorDialog.open()
+        }
+    }
+
     FileDialog {
         id: exportFileDialog
         title: qsTr("Export wallet backup")
@@ -68,7 +112,7 @@ ApplicationWindow {
         selectExisting: false
         selectMultiple: false
         folder: shortcuts.documents
-        nameFilters: [ "Etherwall backup files (*.etherwall)", "All files (*)" ]
+        nameFilters: [ "Dbixwall backup files (*.dbixwall)", "All files (*)" ]
 
         onAccepted: accountModel.exportWallet(exportFileDialog.fileUrl)
     }
@@ -80,7 +124,7 @@ ApplicationWindow {
         selectExisting: true
         selectMultiple: false
         folder: shortcuts.documents
-        nameFilters: [ "Etherwall backup files (*.etherwall)", "All files (*)" ]
+        nameFilters: [ "Dbixwall backup files (*.dbixwall)", "All files (*)" ]
 
         onAccepted: accountModel.importWallet(importFileDialog.fileUrl)
     }
@@ -109,15 +153,22 @@ ApplicationWindow {
     ConfirmDialog {
         id: aboutDialog
         width: 5 * dpi
-        title: qsTr("About Etherwall")
+        title: qsTr("About Dbixwall")
         yesText: qsTr("Check for updates")
         noText: qsTr("OK")
-        msg: '<html><body>Etherwall copyright 2015-2016 by Aleš Katona. For more info please visit the <a href="http://etherwall.com">homepage</a></body></html>'
+        msg: '<html><body>Dbixwall ' + Qt.application.version + ' copyright 2017 by Rkana & copyright 2015-2017 Dbixwall by Aleš Katona. For more info please visit the <a href="https://github.com/dubaicoin-dbix/dbixwall">Github Repo</a></body></html>'
         onYes: {
             manualVersionCheck = true
             transactionModel.checkVersion()
         }
     }
+
+    /*TrezorImportDialog {
+        id: trezorImportDialog
+        width: 5 * dpi
+        yesText: qsTr("Import")
+        noText: qsTr("Cancel")
+    }*/
 
     ErrorDialog {
         id: errorDialog
@@ -160,7 +211,7 @@ ApplicationWindow {
 
                 manualVersionCheck = false
                 versionDialog.title = qsTr("Update available")
-                versionDialog.msg = qsTr("New version of Etherwall available: ") + transactionModel.latestVersion
+                versionDialog.msg = qsTr("New version of Dbixwall available: ") + transactionModel.latestVersion
                 versionDialog.open()
             }
             onLatestVersionSame: {
@@ -169,8 +220,8 @@ ApplicationWindow {
                 }
 
                 manualVersionCheck = false
-                versionDialog.title = qsTr("Etherwall up to date")
-                versionDialog.msg = qsTr("Etherwall is up to date: ") + transactionModel.latestVersion
+                versionDialog.title = qsTr("Dbixwall up to date")
+                versionDialog.msg = qsTr("Dbixwall is up to date: ") + transactionModel.latestVersion
                 versionDialog.open()
             }
 
@@ -196,6 +247,8 @@ ApplicationWindow {
             onWalletExportedEvent: badge.show(qsTr("Wallet successfully exported"))
             onWalletImportedEvent: badge.show(qsTr("Wallet succesfully imported"))
             onWalletErrorEvent: badge.show(qsTr("Error on wallet import/export: " + error))
+            /*onPromptForTrezorImport: trezorImportDialog.open(qsTr("Detected TREZOR device with unimported accounts.") + '<br><a href="http://www.dbixwall.com/faq/#importaccount">' + qsTr("Import addresses from TREZOR?") + '</a>')
+            onAccountsRemoved: badge.show(qsTr("TREZOR accounts removed"))*/
         }
 
         Connections {
@@ -216,13 +269,9 @@ ApplicationWindow {
         running: ipc.starting || ipc.busy || ipc.syncing || accountModel.busy
     }
 
-    FirstTimeDialog {
-        visible: !settings.contains("program/firstrun")
-    }
-
-    HardForkDialog {
-        visible: !ipc.busy && !ipc.starting && !settings.contains("geth/hardfork") && settings.contains("program/firstrun") && ipc.hardForkReady
-    }
+    /*FirstTimeDialog {
+        visible: !settings.contains("program/v2firstrun")
+    }*/
 
     TabView {
         id: tabView
@@ -239,6 +288,10 @@ ApplicationWindow {
         SettingsTab {}
 
         InfoTab {}
+    }
+
+    BaseDialog {
+        id: trezorDialog
     }
 
     statusBar: StatusBar {
@@ -299,14 +352,26 @@ ApplicationWindow {
         }
 
         Text {
-            anchors.centerIn: parent
+            anchors {
+                verticalCenter: parent.verticalCenter
+                left: leftButtonsRow.right
+                right: rightButtonsRow.left
+            }
+
             visible: !ipc.syncing
-            text: ipc.closing ? qsTr("Closing app") : (ipc.starting ? qsTr("Starting Geth...") : qsTr("Ready"))
+            horizontalAlignment: Text.AlignHCenter
+            text: ipc.closing ? qsTr("Closing app") : (ipc.starting ? qsTr("Starting Gdbix...") : qsTr("Ready"))
         }
 
         Text {
-            anchors.centerIn: parent
+            anchors {
+                verticalCenter: parent.verticalCenter
+                left: leftButtonsRow.right
+                right: rightButtonsRow.left
+            }
+
             visible: ipc.syncing
+            horizontalAlignment: Text.AlignHCenter
             text: qsTr("Synchronized ") + Math.max(0, ipc.currentBlock - ipc.startingBlock) + qsTr(" out of ") + Math.max(0, ipc.highestBlock - ipc.startingBlock) + qsTr(" blocks")
         }
 
@@ -324,26 +389,56 @@ ApplicationWindow {
         Row {
             id: rightButtonsRow
             anchors.right: parent.right
+
+            /*ToolButton {
+                iconSource: "/images/trezor"
+                height: 32
+                width: 32
+                enabled: trezor.initialized
+                tooltip: "TREZOR: " + (trezor.initialized ? qsTr("initialized") : (trezor.present ? qsTr("present") : qsTr("disconnected")))
+                onClicked: {
+                    trezorDialog.title = "TREZOR"
+                    trezorDialog.msg = "TREZOR " + qsTr("device id: ") + trezor.deviceID
+                    trezorDialog.open()
+                }
+            }*/
+
             ToolButton {
                 function getQuality(cs, pc) {
+                    if ( ipc.thinClient ) {
+                        return 3
+                    }
+
                     if ( cs <= 0 ) {
-                        return 0; // disconnected
+                        return 0 // disconnected
                     }
 
                     if ( pc > 6 ) {
-                        return 3; // high
+                        return 3 // high
                     } else if ( pc > 3 ) {
-                        return 2; // medium
+                        return 2 // medium
                     } else {
-                        return 1; // low
+                        return 1 // low
                     }
+                }
+
+                function connectionState(cs, pc) {
+                    if ( cs <= 0 ) {
+                        return qsTr("disconnected", "connection state")
+                    }
+
+                    if ( ipc.thinClient ) {
+                        return qsTr("connected to remote node", "connection state")
+                    }
+
+                    return qsTr("connected with ", "connection state connected with X peers") + ipc.peerCount + qsTr(" peers", "connection status, peercount")
                 }
 
                 iconSource: "/images/connected" + getQuality(ipc.connectionState, ipc.peerCount)
                 height: 32
                 width: 32
                 enabled: !ipc.starting
-                tooltip: qsTr("Connection state: ") + (ipc.connectionState > 0 ? (qsTr("connected with ", "connection state connected with X peers") + ipc.peerCount + qsTr(" peers", "connection status, peercount")) : qsTr("disconnected", "connection state"))
+                tooltip: qsTr("Connection state: ") + connectionState(ipc.connectionState, ipc.peerCount)
                 onClicked: {
                     ipc.connectToServer()
                 }

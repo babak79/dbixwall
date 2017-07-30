@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file transactionmodel.cpp
  * @author Ales Katona <almindor@gmail.com>
@@ -20,6 +20,7 @@
 
 #include "transactionmodel.h"
 #include "helpers.h"
+#include "dubaicoin/tx.h"
 #include <QDebug>
 #include <QTimer>
 #include <QJsonArray>
@@ -29,20 +30,23 @@
 #include <QCoreApplication>
 #include <QSettings>
 
-namespace Etherwall {
+namespace Dbixwall {
 
-    TransactionModel::TransactionModel(EtherIPC& ipc, const AccountModel& accountModel) :
+    TransactionModel::TransactionModel(DbixIPC& ipc, const AccountModel& accountModel) :
         QAbstractListModel(0), fIpc(ipc), fAccountModel(accountModel), fBlockNumber(0), fLastBlock(0), fFirstBlock(0), fGasPrice("unknown"), fGasEstimate("unknown"), fNetManager(this),
         fLatestVersion(QCoreApplication::applicationVersion())
     {
-        connect(&ipc, &EtherIPC::connectToServerDone, this, &TransactionModel::connectToServerDone);
-        connect(&ipc, &EtherIPC::getAccountsDone, this, &TransactionModel::getAccountsDone);
-        connect(&ipc, &EtherIPC::getBlockNumberDone, this, &TransactionModel::getBlockNumberDone);
-        connect(&ipc, &EtherIPC::getGasPriceDone, this, &TransactionModel::getGasPriceDone);
-        connect(&ipc, &EtherIPC::estimateGasDone, this, &TransactionModel::estimateGasDone);
-        connect(&ipc, &EtherIPC::sendTransactionDone, this, &TransactionModel::sendTransactionDone);
-        connect(&ipc, &EtherIPC::newTransaction, this, &TransactionModel::newTransaction);
-        connect(&ipc, &EtherIPC::newBlock, this, &TransactionModel::newBlock);
+        connect(&ipc, &DbixIPC::connectToServerDone, this, &TransactionModel::connectToServerDone);
+        connect(&ipc, &DbixIPC::getAccountsDone, this, &TransactionModel::getAccountsDone);
+        connect(&ipc, &DbixIPC::getBlockNumberDone, this, &TransactionModel::getBlockNumberDone);
+        connect(&ipc, &DbixIPC::getGasPriceDone, this, &TransactionModel::getGasPriceDone);
+        connect(&ipc, &DbixIPC::estimateGasDone, this, &TransactionModel::estimateGasDone);
+        connect(&ipc, &DbixIPC::sendTransactionDone, this, &TransactionModel::sendTransactionDone);
+        connect(&ipc, &DbixIPC::signTransactionDone, this, &TransactionModel::signTransactionDone);
+        connect(&ipc, &DbixIPC::newTransaction, this, &TransactionModel::newTransaction);
+        connect(&ipc, &DbixIPC::newBlock, this, &TransactionModel::newBlock);
+        connect(&ipc, &DbixIPC::syncingChanged, this, &TransactionModel::syncingChanged);
+
 
         connect(&fNetManager, SIGNAL(finished(QNetworkReply*)), this, SLOT(httpRequestDone(QNetworkReply*)));
         checkVersion(); // TODO: move this off at some point
@@ -74,7 +78,7 @@ namespace Etherwall {
 
     QHash<int, QByteArray> TransactionModel::roleNames() const {
         QHash<int, QByteArray> roles;
-        roles[TransactionRoles::THashRole] = "hash";
+        roles[THashRole] = "hash";
         roles[NonceRole] = "nonce";
         roles[SenderRole] = "sender";
         roles[ReceiverRole] = "receiver";
@@ -130,7 +134,7 @@ namespace Etherwall {
         fIpc.getGasPrice();
     }
 
-    void TransactionModel::getAccountsDone(const AccountList& list __attribute__((unused))) {
+    void TransactionModel::getAccountsDone(const QStringList& list __attribute__((unused))) {
         refresh();
         loadHistory();
     }
@@ -155,27 +159,47 @@ namespace Etherwall {
     }
 
     void TransactionModel::getGasPriceDone(const QString& num) {
-        fGasPrice = num;
-        emit gasPriceChanged(num);
+        if ( num != fGasEstimate ) {
+            fGasPrice = num;
+            emit gasPriceChanged(num);
+        }
     }
 
     void TransactionModel::estimateGasDone(const QString& num) {
-        fGasEstimate = num;
-        emit gasEstimateChanged(num);
+        if ( num != fGasEstimate ) {
+            fGasEstimate = num;
+            emit gasEstimateChanged(num);
+        }
     }
 
     void TransactionModel::sendTransaction(const QString& password, const QString& from, const QString& to,
-                                           const QString& value, const QString& gas, const QString& gasPrice,
+                                           const QString& value, quint64 nonce, const QString& gas, const QString& gasPrice,
                                            const QString& data) {
-        //fIpc.unlockAccount(from, password, 5, 0);
-        fIpc.sendTransaction(from, to, value, password, gas, gasPrice, data);
+        Dubaicoin::Tx tx(from, to, value, nonce, gas, gasPrice, data); // nonce not required here, ipc.sendTransaction doesn't fill it in as it's known to gdbix
         fQueuedTransaction.init(from, to, value, gas, gasPrice, data);
+
+        if ( fIpc.isThinClient() ) {
+            fIpc.signTransaction(tx, password);
+        } else {
+            fIpc.sendTransaction(tx, password);
+        }
+    }
+
+    void TransactionModel::onRawTransaction(const Dubaicoin::Tx& tx)
+    {
+        fQueuedTransaction.init(tx.fromStr(), tx.toStr(), tx.valueStr(), tx.gasStr(), tx.gasPriceStr(), tx.dataStr());
+        fIpc.sendRawTransaction(tx);
     }
 
     void TransactionModel::sendTransactionDone(const QString& hash) {
         fQueuedTransaction.setHash(hash);
         addTransaction(fQueuedTransaction);
-        EtherLog::logMsg("Transaction sent, hash: " + hash);
+        DbixLog::logMsg("Transaction sent, hash: " + hash);
+    }
+
+    void TransactionModel::signTransactionDone(const QString &hash)
+    {
+        fIpc.sendRawTransaction(hash);
     }
 
     void TransactionModel::newTransaction(const TransactionInfo &info) {
@@ -233,6 +257,13 @@ namespace Etherwall {
         }
     }
 
+    void TransactionModel::syncingChanged(bool syncing)
+    {
+        if ( !syncing ) {
+            refresh();
+        }
+    }
+
     int TransactionModel::getInsertIndex(const TransactionInfo& info) const {
         const quint64 block = info.value(BlockNumberRole).toULongLong();
 
@@ -284,11 +315,11 @@ namespace Etherwall {
                 const QJsonDocument jsonDoc = QJsonDocument::fromJson(val.toUtf8(), &parseError);
 
                 if ( parseError.error != QJsonParseError::NoError ) {
-                    EtherLog::logMsg("Error parsing stored transaction: " + parseError.errorString(), LS_Error);
+                    DbixLog::logMsg("Error parsing stored transaction: " + parseError.errorString(), LS_Error);
                 } else {
                     const TransactionInfo info(jsonDoc.object());
                     newTransaction(info);
-                    // if transaction is newer than 1 day restore it from geth anyhow to ensure correctness in case of reorg
+                    // if transaction is newer than 1 day restore it from gdbix anyhow to ensure correctness in case of reorg
                     if ( info.getBlockNumber() == 0 || fBlockNumber - info.getBlockNumber() < 5400 ) {
                         fIpc.getTransactionByHash(info.getHash());
                     }
@@ -303,14 +334,14 @@ namespace Etherwall {
         qSort(fTransactionList.begin(), fTransactionList.end(), transCompare);
     }
 
-    const QString TransactionModel::estimateTotal(const QString& value, const QString& gas) const {
-        BigInt::Rossi valRossi = Helpers::etherStrToRossi(value);
+    const QString TransactionModel::estimateTotal(const QString& value, const QString& gas, const QString& gasPrice) const {
+        BigInt::Rossi valRossi = Helpers::dbixStrToRossi(value);
         BigInt::Rossi valGas = Helpers::decStrToRossi(gas);
-        BigInt::Rossi valGasPrice = Helpers::etherStrToRossi(fGasPrice);
+        BigInt::Rossi valGasPrice = Helpers::dbixStrToRossi(gasPrice);
 
         const QString wei = QString((valRossi + valGas * valGasPrice).toStrDec().data());
 
-        return Helpers::weiStrToEtherStr(wei);
+        return Helpers::weiStrToDbixStr(wei);
     }
 
     const QString TransactionModel::getHash(int index) const {
@@ -356,9 +387,9 @@ namespace Etherwall {
     const QString TransactionModel::getMaxValue(int row, const QString& gas, const QString& gasPrice) const {
         const QModelIndex index = QAbstractListModel::createIndex(row, 2);
 
-        BigInt::Rossi balanceWeiRossi = Helpers::etherStrToRossi( fAccountModel.data(index, BalanceRole).toString() );
+        BigInt::Rossi balanceWeiRossi = Helpers::dbixStrToRossi( fAccountModel.data(index, BalanceRole).toString() );
         const BigInt::Rossi gasRossi = Helpers::decStrToRossi(gas);
-        const BigInt::Rossi gasPriceRossi = Helpers::etherStrToRossi(gasPrice);
+        const BigInt::Rossi gasPriceRossi = Helpers::dbixStrToRossi(gasPrice);
         const BigInt::Rossi gasTotalRossi = gasRossi * gasPriceRossi;
 
         if ( balanceWeiRossi < gasTotalRossi ) {
@@ -368,7 +399,7 @@ namespace Etherwall {
 
         const QString resultWei = QString(resultWeiRossi.toStrDec().data());
 
-        return Helpers::weiStrToEtherStr(resultWei);
+        return Helpers::weiStrToDbixStr(resultWei);
     }
 
     void TransactionModel::lookupAccountsAliases() {
@@ -393,18 +424,18 @@ namespace Etherwall {
         } else if ( uri == "transactions" ) {
             loadHistoryDone(reply);
         } else {
-            EtherLog::logMsg("Unknown uri from reply: " + uri, LS_Error);
+            DbixLog::logMsg("Unknown uri from reply: " + uri, LS_Error);
         }
     }
 
     void TransactionModel::checkVersion() {
         // get latest app version
-        QNetworkRequest request(QUrl("https://data.etherwall.com/api/version"));
+        QNetworkRequest request(QUrl("http://dbixscan.io/api/version"));
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         QJsonObject objectJson;
         const QByteArray data = QJsonDocument(objectJson).toJson();
 
-        EtherLog::logMsg("HTTP Post request: " + data, LS_Debug);
+        DbixLog::logMsg("HTTP Post request: " + data, LS_Debug);
 
         fNetManager.post(request, data);
     }
@@ -415,7 +446,7 @@ namespace Etherwall {
 
         if ( !success ) {
             const QString error = resObj.value("error").toString("unknown error");
-            return EtherLog::logMsg("Response error: " + error, LS_Error);
+            return DbixLog::logMsg("Response error: " + error, LS_Error);
         }
         const QJsonValue rv = resObj.value("result");
         fLatestVersion = rv.toString("0.0.0");
@@ -431,18 +462,18 @@ namespace Etherwall {
 
     void TransactionModel::loadHistory() {
         QSettings settings;
-        if ( fAccountModel.rowCount() == 0 || settings.value("geth/testnet", false).toBool() || !settings.value("geth/hardfork", true).toBool() ) {
+        if ( fAccountModel.rowCount() == 0 || settings.value("gdbix/testnet", false).toBool() ) {
             return; // don't try with empty request or on test net/ETC
         }
 
-        // get historical transactions from etherdata
-        QNetworkRequest request(QUrl("https://data.etherwall.com/api/transactions"));
+        // get historical transactions from dbixdata
+        QNetworkRequest request(QUrl("https://dbixscan.io/api/transactions"));
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         QJsonObject objectJson;
         objectJson["accounts"] = fAccountModel.getAccountsJsonArray();
         const QByteArray data = QJsonDocument(objectJson).toJson();
 
-        EtherLog::logMsg("HTTP Post request: " + data, LS_Debug);
+        DbixLog::logMsg("HTTP Post request: " + data, LS_Debug);
 
         fNetManager.post(request, data);
     }
@@ -453,7 +484,7 @@ namespace Etherwall {
 
         if ( !success ) {
             const QString error = resObj.value("error").toString("unknown error");
-            return EtherLog::logMsg("Response error: " + error, LS_Error);
+            return DbixLog::logMsg("Response error: " + error, LS_Error);
         }
         const QJsonValue rv = resObj.value("result");
         const QJsonArray result = rv.toArray();
@@ -464,7 +495,7 @@ namespace Etherwall {
             const QString hash = jo.value("hash").toString("bogus");
 
             if ( hash == "bogus" ) {
-                return EtherLog::logMsg("Response hash missing", LS_Error);
+                return DbixLog::logMsg("Response hash missing", LS_Error);
             }
 
             if ( containsTransaction(hash) < 0 ) {
@@ -474,7 +505,7 @@ namespace Etherwall {
         }
 
         if ( stored > 0 ) {
-            EtherLog::logMsg("Restored " + QString::number(stored) + " transactions from etherdata server", LS_Info);
+            DbixLog::logMsg("Restored " + QString::number(stored) + " transactions from dbixdata server", LS_Info);
         }
 
         reply->close();

@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file TransactionsTab.qml
  * @author Ales Katona <almindor@gmail.com>
@@ -42,7 +42,7 @@ Tab {
 
         Button {
             id: sendButton
-            text: "Send Ether"
+            text: "Send Dbix"
             width: parent.width
             height: 1 * dpi
 
@@ -74,7 +74,7 @@ Tab {
             TableViewColumn {
                 horizontalAlignment: Text.AlignRight
                 role: "value"
-                title: qsTr("Value (Ether)")
+                title: qsTr("Value (Dbix)")
                 width: 1.4 * dpi
             }
             TableViewColumn {
@@ -97,7 +97,7 @@ Tab {
                 MenuItem {
                     text: qsTr("Find on blockchain explorer")
                     onTriggered: {
-                        var url = "http://" + (ipc.testnet ? "testnet." : "") + "etherscan.io/tx/" + transactionModel.getHash(transactionView.currentRow)
+                        var url = "http://" + (ipc.testnet ? "testnet." : "") + "dbixscan.io/tx/" + transactionModel.getHash(transactionView.currentRow)
                         Qt.openUrlExternally(url)
                     }
                 }
@@ -120,14 +120,6 @@ Tab {
                     text: qsTr("Copy Receiver")
                     onTriggered: {
                         clipboard.setText(transactionModel.getReceiver(transactionView.currentRow))
-                    }
-                }
-
-                MenuItem {
-                    text: qsTr("Resend")
-                    onTriggered: {
-                        toField.text = transactionModel.getReceiver(transactionView.currentRow)
-                        valueField.text = transactionModel.getValue(transactionView.currentRow)
                     }
                 }
             }

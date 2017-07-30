@@ -1,6 +1,6 @@
 #include "eventmodel.h"
 
-namespace Etherwall {
+namespace Dbixwall {
 
     EventModel::EventModel(const ContractModel& contractModel, const FilterModel& filterModel) :
         QAbstractListModel(0), fContractModel(contractModel), fList()

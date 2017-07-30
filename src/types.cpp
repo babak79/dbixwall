@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file types.cpp
  * @author Ales Katona <almindor@gmail.com>
@@ -29,25 +29,28 @@
 #include <QDir>
 #include <QDebug>
 
-namespace Etherwall {
+namespace Dbixwall {
 
     const QString DefaultIPCPath(const QString& dataDir, bool testnet) {
     #ifdef Q_OS_WIN32
-        return "\\\\.\\pipe\\geth.ipc";
+        Q_UNUSED(dataDir);
+        Q_UNUSED(testnet);
+        return "\\\\.\\pipe\\gdbix.ipc";
     #else
         const QString mid_fix = testnet ? "/testnet" : "";
-        return QDir::cleanPath(dataDir + mid_fix + "/geth.ipc");
+        return QDir::cleanPath(dataDir + mid_fix + "/gdbix.ipc");
     #endif
     }
 
-    const QString DefaultGethPath() {
+    const QString DefaultGdbixPath() {
 #ifdef Q_OS_WIN32
-        return QApplication::applicationDirPath() + "/geth.exe";
+        return QApplication::applicationDirPath() + "/bin/gdbix.exe";
 #else
 #ifdef Q_OS_MACX
-        return QApplication::applicationDirPath() + "/geth";
+        return QApplication::applicationDirPath() + "/bin/gdbix";
 #else
-        return "/usr/bin/geth";
+        //return "/usr/bin/gdbix";
+		return QApplication::applicationDirPath() + "/bin/gdbix";
 #endif
 #endif
     }
@@ -94,34 +97,50 @@ namespace Etherwall {
         return QVariant();
     }
 
-    double CurrencyInfo::recalculate(const float ether) const {
-        return ether * fPrice;
+    double CurrencyInfo::recalculate(const double dbix) const {
+        return dbix * fPrice;
+    }
+
+    const QString CurrencyInfo::name() const
+    {
+        return fName;
     }
 
 
 // ***************************** TransactionInfo ***************************** //
 
-    static int ACC_INDEX = 0;
-
-    AccountInfo::AccountInfo(const QString& hash, const QString& balance, quint64 transCount) :
-        fIndex(ACC_INDEX++), fHash(Helpers::vitalizeAddress(hash)), fBalance(balance), fTransCount(transCount)
+    AccountInfo::AccountInfo(const QString &hash, const QString &alias, const QString &deviceID,
+                             const QString &balance, quint64 transCount, const QString& hdPath, int network) :
+         fHash(Helpers::vitalizeAddress(hash)), fAlias(alias), fDeviceID(deviceID),
+         fBalance(balance), fTransCount(transCount), fHDPath(hdPath), fNetwork(network)
     {
-        const QSettings settings;
-        const QString lowerHash = hash.toLower();
+        // old alias compatibility
+        if ( alias.isEmpty() ) {
+            QSettings settings;
+            const QString lowerHash = hash.toLower();
 
-        if ( settings.contains("alias/" + lowerHash) ) {
-            fAlias = settings.value("alias/" + lowerHash, QString()).toString();
+            if ( settings.contains("alias/" + lowerHash) ) {
+                fAlias = settings.value("alias/" + lowerHash, QString()).toString();
+                settings.remove("alias/" + lowerHash);
+            }
         }
     }
 
     const QVariant AccountInfo::value(const int role) const {
+        const QSettings settings;
+        const QString defaultKey = "accounts/default/" + Helpers::networkPostfix(fNetwork);
+        const QString defaultAccount = settings.value(defaultKey).toString();
+
         switch ( role ) {
-        case HashRole: return QVariant(fHash);
-        case BalanceRole: return QVariant(fBalance);
-        case TransCountRole: return QVariant(fTransCount);
-        case SummaryRole: return QVariant(value(AliasRole).toString() + " [" + fBalance + "]");
-        case AliasRole: return QVariant(fAlias.isEmpty() ? fHash : fAlias);
-        case IndexRole: return QVariant(fIndex);
+            case HashRole: return QVariant(fHash);
+            case DefaultRole: return QVariant(fHash.toLower() == defaultAccount ? "✓" : "");
+            case BalanceRole: return QVariant(fBalance);
+            case TransCountRole: return QVariant(fTransCount);
+            case SummaryRole: return QVariant(getSummary());
+            case AliasRole: return QVariant(fAlias.isEmpty() ? fHash : fAlias);
+            case DeviceRole: return QVariant(fDeviceID);
+            case DeviceTypeRole: return QVariant(fDeviceID == "gdbix" ? "" : "⊡");
+            case HDPathRole: return QVariant(fHDPath);
         }
 
         return QVariant();
@@ -135,11 +154,57 @@ namespace Etherwall {
         fTransCount = count;
     }
 
-    void AccountInfo::alias(const QString& name) {
+    void AccountInfo::setDeviceID(const QString &deviceID)
+    {
+        fDeviceID = deviceID;
+    }
+
+    const QString AccountInfo::deviceID() const
+    {
+        return fDeviceID;
+    }
+
+    void AccountInfo::setAlias(const QString& name) {
         QSettings settings;
 
         settings.setValue("alias/" + fHash.toLower(), name);
         fAlias = name;
+    }
+
+    const QString AccountInfo::alias() const
+    {
+        return fAlias;
+    }
+
+    const QString AccountInfo::hash() const
+    {
+        return fHash;
+    }
+
+    quint64 AccountInfo::transactionCount() const
+    {
+        return fTransCount;
+    }
+
+    const QJsonObject AccountInfo::toJson() const
+    {
+        QJsonObject result;
+        result["hash"] = fHash.toLower();
+        result["alias"] = fAlias;
+        result["deviceID"] = fDeviceID;
+        result["HDPath"] = fHDPath;
+
+        return result;
+    }
+
+    const QString AccountInfo::HDPath() const
+    {
+        return fHDPath;
+    }
+
+    const QString AccountInfo::getSummary() const
+    {
+        return (fHDPath.isEmpty() ? "   " : "⊡ ") +  value(AliasRole).toString() + " [" + fBalance + "]";
     }
 
 // ***************************** TransactionInfo ***************************** //
@@ -200,7 +265,7 @@ namespace Etherwall {
         fSender = Helpers::vitalizeAddress(from);
         fReceiver = Helpers::vitalizeAddress(to);
         fNonce = 0;
-        fValue = Helpers::formatEtherStr(value);
+        fValue = Helpers::formatDbixStr(value);
         if ( !gas.isEmpty() ) {
             fGas = gas;
         }
@@ -222,9 +287,9 @@ namespace Etherwall {
         fBlockHash = source.value("blockHash").toString("invalid");
         fBlockNumber = Helpers::toQUInt64(source.value("blockNumber"));
         fTransactionIndex = Helpers::toQUInt64(source.value("transactionIndex"));
-        fValue = Helpers::toDecStrEther(source.value("value"));
+        fValue = Helpers::toDecStrDbix(source.value("value"));
         fGas = Helpers::toDecStr(source.value("gas"));
-        fGasPrice = Helpers::toDecStrEther(source.value("gasPrice"));
+        fGasPrice = Helpers::toDecStrDbix(source.value("gasPrice"));
         fInput = source.value("input").toString("invalid");
 
         lookupAccountAliases();

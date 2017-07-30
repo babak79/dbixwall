@@ -1,14 +1,14 @@
-#include "etherlog.h"
+#include "dbixlog.h"
 #include <QDebug>
 #include <QSettings>
 #include <QApplication>
 #include <QClipboard>
 
-namespace Etherwall {
+namespace Dbixwall {
 
-    static EtherLog* sLog = NULL;
+    static DbixLog* sLog = NULL;
 
-    EtherLog::EtherLog() :
+    DbixLog::DbixLog() :
         QAbstractListModel(0), fList()
     {
         sLog = this;
@@ -16,7 +16,7 @@ namespace Etherwall {
         fLogLevel = (LogSeverity)settings.value("program/loglevel", LS_Info).toInt();
     }
 
-    QHash<int, QByteArray> EtherLog::roleNames() const {
+    QHash<int, QByteArray> DbixLog::roleNames() const {
         QHash<int, QByteArray> roles;
         roles[MsgRole] = "msg";
         roles[DateRole] = "date";
@@ -25,15 +25,15 @@ namespace Etherwall {
         return roles;
     }
 
-    int EtherLog::rowCount(const QModelIndex & parent __attribute__ ((unused))) const {
+    int DbixLog::rowCount(const QModelIndex & parent __attribute__ ((unused))) const {
         return fList.length();
     }
 
-    QVariant EtherLog::data(const QModelIndex & index, int role) const {
+    QVariant DbixLog::data(const QModelIndex & index, int role) const {
         return fList.at(index.row()).value(role);
     }
 
-    void EtherLog::saveToClipboard() const {
+    void DbixLog::saveToClipboard() const {
         QString text;
 
         foreach ( const LogInfo info, fList ) {
@@ -43,11 +43,11 @@ namespace Etherwall {
         QApplication::clipboard()->setText(text);
     }
 
-    void EtherLog::logMsg(const QString &msg, LogSeverity sev) {
+    void DbixLog::logMsg(const QString &msg, LogSeverity sev) {
         sLog->log(msg, sev);
     }
 
-    void EtherLog::log(QString msg, LogSeverity sev) {
+    void DbixLog::log(QString msg, LogSeverity sev) {
         if ( sev < fLogLevel ) {
             return; // skip due to severity setting
         }
@@ -61,11 +61,11 @@ namespace Etherwall {
         endInsertRows();
     }
 
-    int EtherLog::getLogLevel() const {
+    int DbixLog::getLogLevel() const {
         return fLogLevel;
     }
 
-    void EtherLog::setLogLevel(int ll) {
+    void DbixLog::setLogLevel(int ll) {
         fLogLevel = (LogSeverity)ll;
         QSettings settings;
         settings.setValue("program/loglevel", ll);

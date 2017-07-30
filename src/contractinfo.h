@@ -12,7 +12,7 @@
 
 #include <QDebug>
 
-namespace Etherwall {
+namespace Dbixwall {
 
     enum FilterRoles {
         FilterNameRole = Qt::UserRole + 1,

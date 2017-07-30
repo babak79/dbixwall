@@ -1,5 +1,6 @@
 #include "helpers.h"
-#include "etherlog.h"
+#include "dbixlog.h"
+#include "dubaicoin/keccak.h"
 #include <QJsonParseError>
 #include <QCryptographicHash>
 #include <QBitArray>
@@ -8,9 +9,22 @@
 #include <QFile>
 #include <QDataStream>
 
-namespace Etherwall {
+namespace Dbixwall {
 
 // ***************************** Helpers ***************************** //
+
+    const QString Helpers::hexPrefix(const QString& val) {
+        return val.indexOf("0x") == 0 ? val : ("0x" + val);
+    }
+
+    const QString Helpers::clearHexPrefix(const QString &val)
+    {
+        if ( val.startsWith("0x") || val.startsWith("0X") ) {
+            return val.mid(2);
+        }
+
+        return val;
+    }
 
     const QString Helpers::toDecStr(const QJsonValue& jv) {
         std::string hexStr = jv.toString("0x0").remove(0, 2).toStdString();
@@ -20,7 +34,7 @@ namespace Etherwall {
         return decStr;
     }
 
-    const QString Helpers::toDecStrEther(const QJsonValue& jv) {
+    const QString Helpers::toDecStrDbix(const QJsonValue& jv) {
         QString decStr = toDecStr(jv);
 
         int dsl = decStr.length();
@@ -59,7 +73,7 @@ namespace Etherwall {
         BigInt::Vin vinVal(decStr.toUtf8().data(), 10);
         QString res = QString(vinVal.toStr0xHex().data());
 
-        return QString(vinVal.toStr0xHex().data());
+        return res;
     }
 
     const QString Helpers::toHexWeiStr(quint64 val) {
@@ -69,10 +83,10 @@ namespace Etherwall {
 
     const QString Helpers::decStrToHexStr(const QString &dec) {
         BigInt::Vin vinVal(dec.toStdString(), 10);
-        return QString(vinVal.toStrDec().data());
+        return QString(vinVal.toStr0xHex().data());
     }
 
-    const QString Helpers::weiStrToEtherStr(const QString& wei) {
+    const QString Helpers::weiStrToDbixStr(const QString& wei) {
         QString weiStr = wei;
         while ( weiStr.length() < 18 ) {
             weiStr.insert(0, '0');
@@ -89,7 +103,7 @@ namespace Etherwall {
         return BigInt::Rossi(dec.toStdString(), 10);
     }
 
-    BigInt::Rossi Helpers::etherStrToRossi(const QString& dec) {
+    BigInt::Rossi Helpers::dbixStrToRossi(const QString& dec) {
         QString decStr = dec;
 
         int diff = 18;
@@ -106,8 +120,8 @@ namespace Etherwall {
         return decStrToRossi(decStr);
     }
 
-    const QString Helpers::formatEtherStr(const QString& ether) {
-        QString decStr = ether;
+    const QString Helpers::formatDbixStr(const QString& dbix) {
+        QString decStr = dbix;
 
         int n = decStr.indexOf('.');
         int diff;
@@ -157,18 +171,18 @@ namespace Etherwall {
 
     QJsonObject Helpers::parseHTTPReply(QNetworkReply *reply) {
         if ( reply == NULL ) {
-            EtherLog::logMsg("Undefined reply", LS_Error);
+            DbixLog::logMsg("Undefined reply", LS_Error);
             return QJsonObject();
         }
 
         const QByteArray data = reply->readAll();
-        EtherLog::logMsg("HTTP Post reply: " + data, LS_Debug);
+        DbixLog::logMsg("HTTP Post reply: " + data, LS_Debug);
 
         QJsonParseError parseError;
         const QJsonDocument resDoc = QJsonDocument::fromJson(data, &parseError);
 
         if ( parseError.error != QJsonParseError::NoError ) {
-            EtherLog::logMsg("HTTP Response parse error: " + parseError.errorString(), LS_Error);
+            DbixLog::logMsg("HTTP Response parse error: " + parseError.errorString(), LS_Error);
             return QJsonObject();
         }
 
@@ -186,7 +200,10 @@ namespace Etherwall {
         }
 
         const QByteArray byteAddress = address.toUtf8();
-        const QByteArray hashed = QCryptographicHash::hash(byteAddress, QCryptographicHash::Sha3_256);
+        u8* inData = (u8*) byteAddress.data();
+        u8 outData[32];
+        FIPS202_KECCAK_256(inData, byteAddress.size(), outData);
+        const QByteArray hashed = QByteArray((char*)outData, 32);
         const QString hashStr = QString(hashed.toHex());
 
         QString result = "";
@@ -211,12 +228,23 @@ namespace Etherwall {
         return "0x" + result;
     }
 
+    const QString Helpers::networkPostfix(int network)
+    {
+        switch ( network ) {
+            case 1: return "/dbix/homestead";
+            case 3: return "/dbix/ropsten";
+            case 4: return "/dbix/testnet";
+        }
+
+        return "/unknown/unknown";
+    }
+
     const QByteArray Helpers::exportSettings() {
         const QSettings settings;
         QByteArray result;
 
         foreach ( const QString key, settings.allKeys() ) {
-            if ( key.startsWith("alias/") || key.startsWith("geth/") || key.startsWith("ipc/") || key.startsWith("program") ||
+            if ( key.startsWith("alias/") || key.startsWith("gdbix/") || key.startsWith("ipc/") || key.startsWith("program") ||
                  key.startsWith("contracts/") || key.startsWith("filters/") || key.startsWith("transactions") ) {
                 result += key.toUtf8() + '\0' + settings.value(key, "invalid").toString().toUtf8() + '\0';
             }
@@ -483,7 +511,7 @@ namespace Etherwall {
 
     const QString QmlHelpers::exportAddress(const QString& address, bool testnet) const {
         const QSettings settings;
-        QDir keystore(settings.value("geth/datadir").toString());
+        QDir keystore(settings.value("gdbix/datadir").toString());
         if ( testnet ) {
             keystore.cd("testnet");
         }

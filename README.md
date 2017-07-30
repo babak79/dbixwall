@@ -1,53 +1,58 @@
-# etherwall
+# dbixwall
 
-Ethereum QT5 Wallet
+Dubaicoin-Dbix QT5 Wallet
 
-Etherwall is a free software wallet/front-end for Ethereum.
+Dbixwall is a free software wallet/front-end for Dubaicoin.
 
 ## Usage
 
-Latest geth is required to be running for Etherwall to work. Geth is provided if downloaded from the main website for windows and mac os x.
+Latest gdbix is required to be running for Dbixwall to work.
 
-Default geth path on linux points to `/usr/bin/geth`
+Default gdbix path on all OS paltaforms points to `/bin/gdbix`
+
+inside the Dbixwall Folder.
+
+## Notice
+
+The Thinclient is disabled for now as we do not have Thinserver nodes setup
+
+for Dubaicoin-Dbix yet.
 
 ## License
 
-Etherwall is licensed under the GPLv3 license. See LICENSE for more info.
+Dbixwall based on Etherwall is licensed under the GPLv3 license. See LICENSE for more info.
 
 ## Donations
 
-#### Flattr
-[![Flattr this git repo](http://api.flattr.com/button/flattr-badge-large.png)](https://flattr.com/submit/auto?user_id=Almindor&url=https://github.com/almindor/etherwall&title=Etherwall&language=&tags=github&category=software)
+#### DBIX
+`DBIX Address`
 
-#### Bitcoin
-`1NcJoao879C1pSKvFqnUKD6wKtFpCMppP6`
+#### BTC
+`163TwxYD6rZWxaszg1HHrN3UpDZM1rdu6p`
 
-#### Litecoin
-`LcTfGmqpXCiG7UikBDTa4ZiJMS5cRxSXHm`
-
-#### Ether
-`0xc64b50db57c0362e27a32b65bd29363f29fdfa59`
+#### ETH
+`0x3d0ad54B6c1FE5512068dF2B6230d088f4fd2478`
 
 ## Development
 
-### Requirements
+### General Requirements
 
-Latest Geth
+[Latest Gdbix](https://github.com/dubaicoin-dbix/go-dubaicoin/releases)
 
-Qt5.5+ with qmake
+[Qt5.6+ with qmake](https://www.qt.io/developers/)
 
 ### Building
 
 qmake -config release && make
 
-### Roadmap
-
-- 2.0 use parity as back-end with "internal" transaction watching
-- 1.4 add contract deployment
-- 1.3 added contract support [invoking and watches]
-- 0.9 add transaction history support [done]
-- 0.8 initial release [done]
-
 ### Caveats & bugs
 
-Only supported client at the moment is Geth.
+Only supported client at the moment is Gdbix.
+
+## Credits
+
+https://github.com/almindor/etherwall
+
+## Website
+
+Arabianchain: https://arabianchain.org/

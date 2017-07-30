@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file PasswordDialog.qml
  * @author Ales Katona <almindor@gmail.com>
@@ -25,6 +25,8 @@ BaseDialog {
     width: Math.max(parent.width * 0.6, 6 * dpi)
     property string password
     property bool acceptEmpty: true
+    property bool wasAccepted: false
+    signal rejected
 
     function openFocused(m, ae) {
         title = m || "Confirm operation"
@@ -37,10 +39,19 @@ BaseDialog {
             return;
         }
 
+        wasAccepted = true
         close()
         accepted()
         accountPW.text = ""
         password = ""
+    }
+
+    onVisibleChanged: {
+        if ( !visible && !wasAccepted ) {
+            rejected()
+        } else {
+            wasAccepted = false
+        }
     }
 
     Row {

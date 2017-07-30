@@ -1,28 +1,28 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
-/** @file etheripc.h
+/** @file dbixipc.h
  * @author Ales Katona <almindor@gmail.com>
  * @date 2015
  *
- * Ethereum IPC client header
+ * Dubaicoin IPC client header
  */
 
-#ifndef ETHERIPC_H
-#define ETHERIPC_H
+#ifndef DBIXIPC_H
+#define DBIXIPC_H
 
 #include <QObject>
-#include <QList>
+#include <QQueue>
 #include <QLocalSocket>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -33,11 +33,12 @@
 #include <QProcess>
 #include <QTime>
 #include "types.h"
-#include "etherlog.h"
-#include "gethlog.h"
+#include "dbixlog.h"
+#include "gdbixlog.h"
 #include "bigint.h"
+#include "dubaicoin/tx.h"
 
-namespace Etherwall {
+namespace Dbixwall {
 
     enum RequestBurden {
         Full,
@@ -67,9 +68,9 @@ namespace Etherwall {
         RequestBurden fBurden;
     };
 
-    typedef QList<RequestIPC> RequestList;
+    typedef QQueue<RequestIPC> RequestQueue;
 
-    class EtherIPC: public QObject
+    class DbixIPC: public QObject
     {
         Q_OBJECT
         Q_PROPERTY(QString error READ getError NOTIFY error)
@@ -79,7 +80,6 @@ namespace Etherwall {
         Q_PROPERTY(bool starting READ getStarting NOTIFY startingChanged)
         Q_PROPERTY(bool syncing READ getSyncingVal NOTIFY syncingChanged)
         Q_PROPERTY(bool closing READ getClosing NOTIFY closingChanged)
-        Q_PROPERTY(bool hardForkReady READ getHardForkReady NOTIFY hardForkReadyChanged)
         Q_PROPERTY(int connectionState READ getConnectionState NOTIFY connectionStateChanged)
         Q_PROPERTY(quint64 peerCount READ peerCount NOTIFY peerCountChanged)
         Q_PROPERTY(QString clientVersion MEMBER fClientVersion NOTIFY clientVersionChanged)
@@ -90,58 +90,59 @@ namespace Etherwall {
         Q_PROPERTY(quint64 startingBlock READ getStartingBlock NOTIFY syncingChanged)
         Q_PROPERTY(quint64 blockNumber MEMBER fBlockNumber NOTIFY getBlockNumberDone)
     public:
-        EtherIPC(const QString& ipcPath, GethLog& gethLog);
-        virtual ~EtherIPC();
+        //DbixIPC(GdbixLog& gdbixLog);
+		DbixIPC(const QString& ipcPath, GdbixLog& gdbixLog);
+        virtual ~DbixIPC();
+        virtual void init();
+        virtual bool isThinClient() const;
+
         void setWorker(QThread* worker);
         bool getBusy() const;
         bool getExternal() const;
         bool getStarting() const;
         bool getClosing() const;
-        bool getHardForkReady() const;
         const QString& getError() const;
         int getCode() const;
         bool getTestnet() const;
         const QString getNetworkPostfix() const;
         quint64 blockNumber() const;
-    public slots:
-        void init();
-        void waitConnect();
-        void connectToServer();
-        void connectedToServer();
-        void connectionTimeout();
-        void disconnectedFromServer();
+        int network() const;
+        quint64 nonceStart() const;
         void getAccounts();
         bool refreshAccount(const QString& hash, int index);
-        bool getBalance(const QString& hash, int index);
-        bool getTransactionCount(const QString& hash, int index);
         void newAccount(const QString& password, int index);
-        void deleteAccount(const QString& hash, const QString& password, int index);
         void getBlockNumber();
-        void getPeerCount();
-        void sendTransaction(const QString& from, const QString& to, const QString& valStr, const QString& password,
-                             const QString& gas = QString(), const QString& gasPrice = QString(), const QString& data = QString());
-        void unlockAccount(const QString& hash, const QString& password, int duration, int index);
-        void getGasPrice();
-        Q_INVOKABLE void estimateGas(const QString& from, const QString& to, const QString& valStr,
-                                     const QString& gas, const QString& gasPrice, const QString& data);
-        void getTransactionByHash(const QString& hash);
-        void getBlockByHash(const QString& hash);
-        void getBlockByNumber(quint64 blockNum);
-        Q_INVOKABLE void getTransactionReceipt(const QString& hash);
-        void onSocketReadyRead();
-        void onSocketError(QLocalSocket::LocalSocketError err);
-        Q_INVOKABLE void setInterval(int interval);
-        bool closeApp();
         void registerEventFilters(const QStringList& addresses, const QStringList& topics);
         void loadLogs(const QStringList& addresses, const QStringList& topics, quint64 fromBlock);
+        void getGasPrice();
+        void sendTransaction(const Dubaicoin::Tx& tx, const QString& password);
+        void signTransaction(const Dubaicoin::Tx& tx, const QString& password);
+        void signTransaction(const Dubaicoin::Tx& tx);
+        void sendRawTransaction(const Dubaicoin::Tx& tx);
+        void sendRawTransaction(const QString &rlp);
+        void getTransactionByHash(const QString& hash);
+
+        Q_INVOKABLE virtual bool closeApp();
+        Q_INVOKABLE virtual void setInterval(int interval);
+        Q_INVOKABLE void estimateGas(const QString& from, const QString& to, const QString& valStr,
+                                     const QString& gas, const QString& gasPrice, const QString& data);
+        Q_INVOKABLE void getTransactionReceipt(const QString& hash);
+    protected slots:
+        void waitConnect();
+        void connectToServer();
+        virtual void connectedToServer();
+        void connectionTimeout();
+        void disconnectedFromServer();
+        void onSocketReadyRead();
+        void onSocketError(QLocalSocket::LocalSocketError err);
     signals:
         void connectToServerDone();
-        void getAccountsDone(const AccountList& list) const;
+        void getAccountsDone(const QStringList& list) const;
         void newAccountDone(const QString& result, int index) const;
-        void deleteAccountDone(bool result, int index) const;
+        void unlockAccountDone(bool unlocked, int index) const;
         void getBlockNumberDone(quint64 num) const;
         void sendTransactionDone(const QString& hash) const;
-        void unlockAccountDone(bool result, int index) const;
+        void signTransactionDone(const QString& hash) const;
         void getGasPriceDone(const QString& price) const;
         void estimateGasDone(const QString& price) const;
         void newTransaction(const TransactionInfo& info) const;
@@ -150,18 +151,18 @@ namespace Etherwall {
         void getTransactionReceiptDone(const QJsonObject& receipt) const;
 
         void peerCountChanged(quint64 num) const;
-        void accountChanged(const AccountInfo& info) const;
+        void accountBalanceChanged(int index, const QString& balanceStr) const;
+        void accountSentTransChanged(int index, quint64 count) const;
         void busyChanged(bool busy) const;
         void externalChanged(bool external) const;
         void startingChanged(bool starting) const;
         void syncingChanged(bool syncing) const;
         void closingChanged(bool closing) const;
-        void hardForkReadyChanged(bool hfReady) const;
         void connectionStateChanged() const;
         void clientVersionChanged(const QString& ver) const;
         void netVersionChanged(int ver) const;
         void error() const;
-    private:
+    protected:
         QString fPath;
         QLocalSocket fSocket;
         QString fBlockFilterID;
@@ -170,16 +171,15 @@ namespace Etherwall {
         QString fReadBuffer;
         QString fError;
         int fCode;
-        AccountList fAccountList;
         TransactionList fTransactionList;
-        RequestList fRequestQueue;
+        RequestQueue fRequestQueue;
         RequestIPC fActiveRequest;
         QTimer fTimer;
         int fNetVersion;
         QString fClientVersion;
-        QProcess fGeth;
+        QProcess fGdbix;
         int fStarting;
-        GethLog& fGethLog;
+        GdbixLog& fGdbixLog;
         bool fSyncing;
         quint64 fCurrentBlock;
         quint64 fHighestBlock;
@@ -191,14 +191,13 @@ namespace Etherwall {
         quint64 fBlockNumber;
 
         void handleNewAccount();
-        void handleDeleteAccount();
         void handleGetAccounts();
         void handleAccountBalance();
         void handleAccountTransactionCount();
         void handleGetBlockNumber();
         void handleGetPeerCount();
         void handleSendTransaction();
-        void handleUnlockAccount();
+        void handleSignTransaction();
         void handleGetGasPrice();
         void handleEstimateGas();
         void handleNewBlockFilter();
@@ -211,15 +210,30 @@ namespace Etherwall {
         void handleGetClientVersion();
         void handleGetNetVersion();
         void handleGetSyncing();
+        void handleUnlockAccount();
 
+        // virtual
+        virtual bool endpointWritable();
+        virtual qint64 endpointWrite(const QByteArray& data);
+        virtual const QByteArray endpointRead();
+        virtual const QStringList buildGdbixArgs();
+
+        void ipcReady();
         void onTimer();
-        bool killGeth();
+        bool killGdbix();
         int parseVersionNum() const;
+        const QJsonArray parseTopics(const QStringList& topics);
+        void unlockAccount(const QString& hash, const QString& password, int duration, int index);
+        bool getBalance(const QString& hash, int index);
+        bool getTransactionCount(const QString& hash, int index);
         void getSyncing();
         void getFilterChanges(const QString& filterID);
         void getClientVersion();
         void getNetVersion();
+        void getPeerCount();
         bool getSyncingVal() const;
+        void getBlockByHash(const QString& hash);
+        void getBlockByNumber(quint64 blockNum);
         quint64 getCurrentBlock() const;
         quint64 getHighestBlock() const;
         quint64 getStartingBlock() const;
@@ -232,7 +246,7 @@ namespace Etherwall {
         void newBlockFilter();
         void newEventFilter(const QStringList& addresses, const QStringList& topics);
         void uninstallFilter(const QString& filter);
-        void getLogs(const QStringList& addresses, const QStringList& topics, quint64 fromBlock);
+        virtual void getLogs(const QStringList& addresses, const QStringList& topics, quint64 fromBlock);
 
         QJsonObject methodToJSON(const RequestIPC& request);
         bool queueRequest(const RequestIPC& request);
@@ -246,5 +260,5 @@ namespace Etherwall {
 
 }
 
-#endif // ETHERIPC_H
+#endif // DBIXIPC_H
 

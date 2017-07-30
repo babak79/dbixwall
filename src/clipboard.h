@@ -5,7 +5,7 @@
 #include <QClipboard>
 #include <QObject>
 
-namespace Etherwall {
+namespace Dbixwall {
 
     class ClipboardAdapter : public QObject
     {

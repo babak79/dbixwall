@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file FirstTimeDialog.qml
  * @author Ales Katona <almindor@gmail.com>
@@ -52,6 +52,20 @@ Window {
         cccTab.children[0].contractIndex = index
         tabs.currentIndex = 0
         show()
+    }
+
+    Badge {
+        id: ccBadge
+        z: 999
+
+        Connections {
+            target: trezor
+            onButtonRequest: {
+                if ( code === 8 && contractCalls.visible ) {
+                    ccBadge.show(ccBadge.button_msg(code))
+                }
+            }
+        }
     }
 
     TabView {

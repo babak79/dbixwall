@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file types.h
  * @author Ales Katona <almindor@gmail.com>
@@ -31,21 +31,21 @@
 #include <QJsonArray>
 #include <QDateTime>
 
-namespace Etherwall {
+namespace Dbixwall {
 
 #ifdef Q_OS_WIN32
-    static const QString DefaultDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Ethereum";
+    static const QString DefaultDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Dubaicoin";
 #else
     #ifdef Q_OS_MACX
-    static const QString DefaultDataDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation) + "/Library/Ethereum";
+    static const QString DefaultDataDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation) + "/Library/Dubaicoin";
     #else
-    static const QString DefaultDataDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation) + "/.ethereum";
+    static const QString DefaultDataDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation) + "/.dubaicoin";
     #endif
 #endif
 
     static const quint64 SYNC_DEPTH = 10;
-    static const QString DefaultGethArgs = "--fast --cache 512";
-    static const QString EtherWall_Cert = "-----BEGIN CERTIFICATE-----\n"
+    static const QString DefaultGdbixArgs = "--syncmode=fast --cache 512";
+    /*static const QString DbixWall_Cert = "-----BEGIN CERTIFICATE-----\n"
             "MIIDiDCCAnACCQCXJXqGOlAorjANBgkqhkiG9w0BAQsFADCBhTELMAkGA1UEBhMC\n"
             "Q0ExEDAOBgNVBAgMB0FsYmVydGExEDAOBgNVBAcMB0NhbGdhcnkxEjAQBgNVBAoM\n"
             "CUV0aGVyZHluZTEbMBkGA1UEAwwSZGF0YS5ldGhlcndhbGwuY29tMSEwHwYJKoZI\n"
@@ -65,10 +65,10 @@ namespace Etherwall {
             "0WThQ183ERexxwtYQ8qSn3L+kXCPJyVnazt7IJ3rylB9e6t6voaU/eNQUC7Mdwov\n"
             "Vw6Ar9fz+sQVccQQDREICKnnK1M+k8kk+g3c+rF3ISFlLPi981tWjGSTH685HH0q\n"
             "JkX2TxeYmZl+B/qvVorfPzWK7NoalCBvIxyxBeI3e67Ly0lRWAGIsWEtQP4=\n"
-            "-----END CERTIFICATE-----\n";
+            "-----END CERTIFICATE-----\n";*/
 
     const QString DefaultIPCPath(const QString& dataDir, bool testnet);
-    const QString DefaultGethPath();
+    const QString DefaultGdbixPath();
 
     enum LogRoles {
         MsgRole = Qt::UserRole + 1,
@@ -108,7 +108,8 @@ namespace Etherwall {
     public:
         CurrencyInfo( const QString name, const float price );
         const QVariant value(const int role) const;
-        double recalculate(const float ether) const;
+        double recalculate(const double dbix) const;
+        const QString name() const;
     private:
         QString fName;
         float fPrice;
@@ -119,14 +120,15 @@ namespace Etherwall {
     enum RequestTypes {
         NoRequest,
         NewAccount,
-        DeleteAccount,
+        UnlockAccount,
         GetBlockNumber,
         GetAccountRefs,
         GetBalance,
         GetTransactionCount,
         GetPeerCount,
         SendTransaction,
-        UnlockAccount,
+        SignTransaction,
+        SendRawTransaction,
         GetGasPrice,
         EstimateGas,
         NewBlockFilter,
@@ -144,17 +146,21 @@ namespace Etherwall {
 
     enum AccountRoles {
         HashRole = Qt::UserRole + 1,
+        DefaultRole,
         BalanceRole,
         TransCountRole,
         SummaryRole,
         AliasRole,
-        IndexRole
+        DeviceRole,
+        DeviceTypeRole,
+        HDPathRole
     };
 
     class AccountInfo
     {
     public:
-        AccountInfo(const QString& hash, const QString& balance, quint64 transCount);
+        AccountInfo(const QString& hash, const QString& alias, const QString& deviceID,
+                    const QString& balance, quint64 transCount, const QString& hdPath, const int network);
 
         const QVariant value(const int role) const;
         void setBalance(const QString& balance);
@@ -162,14 +168,25 @@ namespace Etherwall {
         void lock();
         void unlock();
         bool isLocked() const;
-        void alias(const QString& name);
+        void setDeviceID(const QString& deviceID);
+        const QString deviceID() const;
+        void setAlias(const QString& name);
+        const QString alias() const;
+        const QString hash() const;
+        quint64 transactionCount() const;
+        const QJsonObject toJson() const;
+        const QString HDPath() const;
     private:
-        int fIndex;
         QString fHash;
-        QString fBalance; // in ether
-        quint64 fTransCount;
         QString fAlias;
+        QString fDeviceID;
+        QString fBalance; // in dbix
+        quint64 fTransCount;
+        QString fHDPath;
         bool fLocked;
+        int fNetwork;
+
+        const QString getSummary() const;
     };
 
     typedef QList<AccountInfo> AccountList;
@@ -214,7 +231,7 @@ namespace Etherwall {
         quint64 fNonce;
         QString fSender;
         QString fReceiver;
-        QString fValue; // in ether
+        QString fValue; // in dbix
         quint64 fBlockNumber;
         QString fBlockHash;
         quint64 fTransactionIndex;

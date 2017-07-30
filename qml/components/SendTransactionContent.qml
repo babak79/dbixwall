@@ -12,15 +12,23 @@ Item {
     property string contractAbi : ""
     signal done
 
-    onVisibleChanged: {
-        if ( visible ) {
-            if ( contractName.length ) {
-                gasField.text = "3141592"
-            } else {
-                gasField.text = "21000"
-            }
-            sendButton.refresh()
+    function prepare() {
+        if ( contractName.length ) {
+            gasField.text = "3141592"
+        } else {
+            gasField.text = "21000"
         }
+        var result = sendButton.refresh()
+        if ( !result.error ) {
+            ipc.estimateGas(result.from, result.to, result.txtVal, "3141592", result.txtGasPrice, contractData)
+        }
+    }
+
+    Component.onCompleted: prepare()
+
+    Connections {
+        target: trezor
+        onPresenceChanged: sendButton.refresh()
     }
 
     BusyIndicator {
@@ -46,8 +54,12 @@ Item {
                 width: mainColumn.width - 1 * dpi
                 model: accountModel
                 textRole: "summary"
-                onCurrentIndexChanged: {
-                    sendButton.refresh()
+                currentIndex: accountModel.defaultIndex
+                onActivated: {
+                    var result = sendButton.refresh(index)
+                    if ( !result.error ) {
+                        ipc.estimateGas(result.from, result.to, result.txtVal, "3141592", result.txtGasPrice, contractData)
+                    }
                 }
             }
         }
@@ -71,7 +83,10 @@ Item {
                 maximumLength: 42
 
                 onTextChanged: {
-                    sendButton.refresh()
+                    var result = sendButton.refresh()
+                    if ( !result.error ) {
+                        ipc.estimateGas(result.from, result.to, result.txtVal, "3141592", result.txtGasPrice, contractData)
+                    }
                 }
             }
         }
@@ -83,6 +98,8 @@ Item {
             }
 
             TextField {
+                property bool manual : false
+
                 id: gasField
                 width: 0.9 * dpi
                 validator: IntValidator {
@@ -91,12 +108,20 @@ Item {
                 }
 
                 text: "3141592" // max, will go lower on estimates
+
+                onEditingFinished: manual = true
             }
 
             Button {
                 id: estimateButton
                 text: "Estimate"
-                onClicked: sendButton.refresh()
+                onClicked: {
+                    gasField.manual = false // allow overrides
+                    var result = sendButton.refresh()
+                    if ( !result.error ) {
+                        ipc.estimateGas(result.from, result.to, result.txtVal, "3141592", result.txtGasPrice, contractData)
+                    }
+                }
             }
 
             Label {
@@ -118,7 +143,10 @@ Item {
                     // prevent updates from now on until they press gasPrice refresh if value is new
                     if ( text !== transactionModel.gasPrice ) {
                         text = String(text)
-                        sendButton.refresh()
+                        var result = sendButton.refresh()
+                        if ( !result.error ) {
+                            ipc.estimateGas(result.from, result.to, result.txtVal, "3141592", result.txtGasPrice, contractData)
+                        }
                     }
                 }
             }
@@ -131,7 +159,10 @@ Item {
                 tooltip: qsTr("Apply current gas price")
                 onClicked: {
                     gasPriceField.text = Qt.binding(function() { return transactionModel.gasPrice })
-                    sendButton.refresh()
+                    var result = sendButton.refresh()
+                    if ( !result.error ) {
+                        ipc.estimateGas(result.from, result.to, result.txtVal, "3141592", result.txtGasPrice, contractData)
+                    }
                 }
             }
         }
@@ -153,9 +184,7 @@ Item {
 
                 maximumLength: 50
                 onTextChanged: {
-                    if ( !loaded() ) return
-                    sendButton.refresh()
-                    estimate()
+                    if ( !text || !text.length || ( sendButton && sendButton.status < 0 ) ) sendButton.refresh()
                 }
                 text: "0"
             }
@@ -166,14 +195,13 @@ Item {
                 width: 32
                 height: 32
 
-                tooltip: qsTr("Send all", "send all ether from account")
+                tooltip: qsTr("Send all", "send all dbix from account")
                 onClicked: {
                     valueField.text = transactionModel.getMaxValue(fromField.currentIndex, gasField.text, gasPriceField.text)
                 }
             }
         }
 
-        // -- estimate is broken in geth 1.0.1- must wait for later release
         Row {
             id: lastRow
             Label {
@@ -192,7 +220,8 @@ Item {
                     locale: "en_US"
                 }
 
-                text: transactionModel.estimateTotal(valueField.text, gasField.text)
+                text: transactionModel.estimateTotal(valueField.text, gasField.text, gasPriceField.text)
+                onTextChanged: sendButton.setHelperText(text, sendButton.getGasTotal())
             }
         }
 
@@ -218,14 +247,14 @@ Item {
             title: qsTr("Confirm transaction")
 
             onAccepted: {
-                var result = sendButton.check()
+                var result = sendButton.check(fromField.currentIndex)
                 if ( result.error !== null ) {
                     errorDialog.msg = result.error
                     errorDialog.open()
                     return
                 }
 
-                transactionModel.sendTransaction(password, result.from, result.to, result.txtVal, result.txtGas, result.txtGasPrice, contractData)
+                transactionModel.sendTransaction(password, result.from, result.to, result.txtVal, result.nonce, result.txtGas, result.txtGasPrice, contractData)
             }
         }
 
@@ -257,7 +286,7 @@ Item {
               }
             }
 
-            function check() {
+            function check(accountIndex) {
                 var result = {
                     error: null,
                     warning: null,
@@ -266,12 +295,11 @@ Item {
                     value: -1
                 }
 
-                if ( fromField.currentIndex < 0 ) {
+                if ( accountIndex < 0 ) {
                     result.error = qsTr("Sender account not selected")
                     return result
                 }
-                var index = fromField.currentIndex
-                result.from = accountModel.getAccountHash(index) || ""
+                result.from = accountModel.getAccountHash(accountIndex) || ""
 
                 if ( !result.from.match(/0x[a-f,A-Z,0-9]{40}/) ) {
                     result.error = qsTr("Sender account invalid")
@@ -295,14 +323,41 @@ Item {
                     return result
                 }
 
+                result.chain_id = ipc.testnet ? 4 : 1 // TODO: this should be handled better
+                result.nonce = accountModel.getAccountNonce(accountIndex)
+                //result.hdpath = accountModel.getAccountHDPath(accountIndex)
+
+                /*if ( result.hdpath && !trezor.present ) {
+                    result.error = qsTr("Connect TREZOR device to send from external account")
+                    return result;
+                }*/
+
                 result.txtGas = gasField.text
                 result.txtGasPrice = gasPriceField.text
 
                 return result;
             }
 
-            function refresh() {
-                var result = check()
+            function getGasTotal() {
+                return parseFloat(gasField.text) * parseFloat(gasPriceField.text)
+            }
+
+            function setHelperText(total, gasTotal) {
+                if ( status !== 0 ) {
+                    return
+                }
+
+                warningField.text = currencyModel.helperName + " total: " + currencyModel.recalculateToHelper(total) + "\n" +
+                        currencyModel.helperName + " gas cost: " + currencyModel.recalculateToHelper(gasTotal)
+            }
+
+            function refresh(accountIndex) {
+                if ( accountIndex === undefined || accountIndex === null ) {
+                    accountIndex = fromField.currentIndex
+                }
+
+                var result = check(accountIndex)
+
                 if ( result.error !== null ) {
                     tooltip = result.error
                     sendIcon.source = "/images/error"
@@ -318,13 +373,12 @@ Item {
                     sendIcon.source = "/images/warning"
                     status = -1
                 } else {
-                    warningField.text = ""
-                    toField.textColor = "black"
                     status = 0
+                    warningField.text = ""
+                    setHelperText(valueTotalField.text, getGasTotal())
+                    toField.textColor = "black"
                     sendIcon.source = "/images/ok"
                 }
-
-                ipc.estimateGas(result.from, result.to, result.txtVal, "3141592", result.txtGasPrice, contractData)
 
                 return result
             }
@@ -336,7 +390,9 @@ Item {
                 }
 
                 onEstimateGasDone: {
-                    gasField.text = price
+                    if ( !gasField.manual ) {
+                        gasField.text = price
+                    }
                 }
 
                 onSendTransactionDone: {
@@ -358,7 +414,17 @@ Item {
                     return
                 }
 
-                transactionSendDialog.msg = qsTr("Confirm send of Ξ") + result.value + qsTr(" to: ") + result.to
+                // trezor asks for confirmation[s] on it's display, one more is cumbersome
+                if ( result.hdpath.length ) {
+                    trezor.signTransaction(result.chain_id, result.hdpath, result.from, result.to, result.txtVal, result.nonce, result.txtGas, result.txtGasPrice, contractData)
+                    return
+                }
+
+                if ( contractName.length > 0 ) {
+                    transactionSendDialog.msg = qsTr("Confirm creation of contract: ") + contractName
+                } else {
+                    transactionSendDialog.msg = qsTr("Confirm send of Ξ") + result.value + qsTr(" to: ") + result.to
+                }
                 transactionSendDialog.open()
             }
         }

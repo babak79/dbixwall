@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file AccountDialog.qml
  * @author Ales Katona <almindor@gmail.com>
@@ -46,6 +46,13 @@ BaseDialog {
         accountPW0.text = ""
         accountPW1.text = ""
         password = ""
+    }
+
+    function submit() {
+        if (accountPW0.text === accountPW1.text && accountPW0.text.length > 0) {
+            password = accountPW0.text
+            doAccept()
+        }
     }
 
     Row {
@@ -94,20 +101,23 @@ BaseDialog {
             text: qsTr("Repeat: ", "password") + "    "
         }
 
+        function submit() {
+
+        }
+
         TextField {
             id: accountPW1
             echoMode: TextInput.Password
             width: parent.parent.width * 0.6
+            Keys.onReturnPressed: submit()
+            Keys.onEnterPressed: submit()
         }
 
         Button {
             id: okButton
             text: "OK"
             enabled: accountPW0.text === accountPW1.text && accountPW0.text.length > 0
-            onClicked: {
-                password = accountPW0.text
-                doAccept()
-            }
+            onClicked: submit()
         }
     }
 }

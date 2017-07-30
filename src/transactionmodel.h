@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file transactionmodel.h
  * @author Ales Katona <almindor@gmail.com>
@@ -28,11 +28,11 @@
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include "types.h"
-#include "etheripc.h"
+#include "dbixipc.h"
 #include "accountmodel.h"
-#include "etherlog.h"
+#include "dbixlog.h"
 
-namespace Etherwall {
+namespace Dbixwall {
 
     class TransactionModel : public QAbstractListModel
     {
@@ -44,7 +44,7 @@ namespace Etherwall {
         Q_PROPERTY(QString gasEstimate READ getGasEstimate NOTIFY gasEstimateChanged FINAL)
         Q_PROPERTY(QString latestVersion READ getLatestVersion NOTIFY latestVersionChanged FINAL)
     public:
-        TransactionModel(EtherIPC& ipc, const AccountModel& accountModel);
+        TransactionModel(DbixIPC& ipc, const AccountModel& accountModel);
         quint64 getBlockNumber() const;
         const QString& getGasPrice() const;
         const QString& getLatestVersion() const;
@@ -53,7 +53,12 @@ namespace Etherwall {
         int rowCount(const QModelIndex & parent = QModelIndex()) const;
         QVariant data(const QModelIndex & index, int role = Qt::DisplayRole) const;
         int containsTransaction(const QString& hash);
-        Q_INVOKABLE const QString estimateTotal(const QString& value, const QString& gas) const;
+
+        Q_INVOKABLE void sendTransaction(const QString& password, const QString& from, const QString& to,
+                             const QString& value, quint64 nonce, const QString& gas = QString(),
+                             const QString& gasPrice = QString(), const QString& data = QString());
+
+        Q_INVOKABLE const QString estimateTotal(const QString& value, const QString& gas, const QString& gasPrice) const;
         Q_INVOKABLE void loadHistory();
         Q_INVOKABLE const QString getHash(int index) const;
         Q_INVOKABLE const QString getSender(int index) const;
@@ -67,17 +72,18 @@ namespace Etherwall {
         quint64 getFirstBlock() const;
         quint64 getLastBlock() const;
     public slots:
+        void onRawTransaction(const Dubaicoin::Tx& tx);
+    private slots:
         void connectToServerDone();
-        void getAccountsDone(const AccountList& list);
+        void getAccountsDone(const QStringList& list);
         void getBlockNumberDone(quint64 num);
         void getGasPriceDone(const QString& num);
         void estimateGasDone(const QString& num);
         void sendTransactionDone(const QString& hash);
-        void sendTransaction(const QString& password, const QString& from, const QString& to,
-                             const QString& value, const QString& gas = QString(),
-                             const QString& gasPrice = QString(), const QString& data = QString());
+        void signTransactionDone(const QString& hash);
         void newTransaction(const TransactionInfo& info);
         void newBlock(const QJsonObject& block);
+        void syncingChanged(bool syncing);
         void refresh();
         void loadHistoryDone(QNetworkReply* reply);
         void checkVersionDone(QNetworkReply *reply);
@@ -92,7 +98,7 @@ namespace Etherwall {
         void receivedTransaction(const QString& toAddress) const;
         void confirmedTransaction(const QString& toAddress, const QString& hash) const;
     private:
-        EtherIPC& fIpc;
+        DbixIPC& fIpc;
         const AccountModel& fAccountModel;
         TransactionList fTransactionList;
         quint64 fBlockNumber;
@@ -107,6 +113,7 @@ namespace Etherwall {
         int getInsertIndex(const TransactionInfo& info) const;
         void addTransaction(const TransactionInfo& info);
         void storeTransaction(const TransactionInfo& info);
+        void refreshPendingTransactions();
     };
 
 }

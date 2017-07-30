@@ -4,15 +4,15 @@
 #include <QObject>
 #include <QAbstractListModel>
 #include "contractinfo.h"
-#include "etheripc.h"
+#include "dbixipc.h"
 
-namespace Etherwall {
+namespace Dbixwall {
 
     class FilterModel : public QAbstractListModel
     {
         Q_OBJECT
     public:
-        FilterModel(EtherIPC& ipc);
+        FilterModel(DbixIPC& ipc);
 
         QHash<int, QByteArray> roleNames() const;
         int rowCount(const QModelIndex & parent = QModelIndex()) const;
@@ -34,7 +34,7 @@ namespace Etherwall {
     private:
         void update(int index);
         void registerFilters() const;
-        EtherIPC& fIpc;
+        DbixIPC& fIpc;
         EventFilters fList;
     };
 

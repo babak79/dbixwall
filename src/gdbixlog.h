@@ -1,5 +1,5 @@
-#ifndef GETHLOG_H
-#define GETHLOG_H
+#ifndef GDBIXLOG_H
+#define GDBIXLOG_H
 
 #include <QObject>
 #include <QStringList>
@@ -7,13 +7,13 @@
 #include <QProcess>
 #include "types.h"
 
-namespace Etherwall {
+namespace Dbixwall {
 
-    class GethLog : public QAbstractListModel
+    class GdbixLog : public QAbstractListModel
     {
         Q_OBJECT
     public:
-        GethLog();
+        GdbixLog();
 
         QHash<int, QByteArray> roleNames() const;
         int rowCount(const QModelIndex & parent = QModelIndex()) const;
@@ -32,4 +32,4 @@ namespace Etherwall {
 
 }
 
-#endif // GETHLOG_H
+#endif // GDBIXLOG_H

@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file contractmodel.cpp
  * @author Ales Katona <almindor@gmail.com>
@@ -25,9 +25,9 @@
 #include <QAbstractListModel>
 #include <QNetworkAccessManager>
 #include "contractinfo.h"
-#include "etheripc.h"
+#include "dbixipc.h"
 
-namespace Etherwall {
+namespace Dbixwall {
 
     class PendingContract {
     public:
@@ -44,7 +44,7 @@ namespace Etherwall {
         Q_OBJECT
         Q_PROPERTY(bool busy MEMBER fBusy NOTIFY busyChanged)
     public:
-        ContractModel(EtherIPC& ipc);
+        ContractModel(DbixIPC& ipc);
 
         QHash<int, QByteArray> roleNames() const;
         int rowCount(const QModelIndex & parent = QModelIndex()) const;
@@ -54,6 +54,7 @@ namespace Etherwall {
         Q_INVOKABLE const QString contractDeployed(const QJsonObject& receipt);
         Q_INVOKABLE bool deleteContract(int index);
         Q_INVOKABLE const QString getName(int index) const;
+        Q_INVOKABLE int getIndex(const QString name) const;
         Q_INVOKABLE const QString getAddress(int index) const;
         Q_INVOKABLE const QString getABI(int index) const;
         Q_INVOKABLE const QStringList getFunctions(int index) const;
@@ -75,7 +76,7 @@ namespace Etherwall {
         const QString getPostfix() const;
 
         ContractList fList;
-        EtherIPC& fIpc;
+        DbixIPC& fIpc;
         QNetworkAccessManager fNetManager;
         bool fBusy;
         PendingContracts fPendingContracts;

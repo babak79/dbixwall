@@ -1,11 +1,11 @@
 #include "filtermodel.h"
 #include <QSettings>
 
-namespace Etherwall {
+namespace Dbixwall {
 
-    FilterModel::FilterModel(EtherIPC& ipc) : QAbstractListModel(0), fIpc(ipc), fList()
+    FilterModel::FilterModel(DbixIPC& ipc) : QAbstractListModel(0), fIpc(ipc), fList()
     {
-        connect(&ipc, &EtherIPC::connectToServerDone, this, &FilterModel::reload);
+        connect(&ipc, &DbixIPC::connectToServerDone, this, &FilterModel::reload);
     }
 
     QHash<int, QByteArray> FilterModel::roleNames() const {
@@ -155,27 +155,21 @@ namespace Etherwall {
     }
 
     void FilterModel::loadLogs() const {
-        QStringList addresses;
-        QStringList topics;
         const QSettings settings;
+        quint64 day = settings.value("gdbix/logsize", 7200).toLongLong();
+        quint64 fromBlock = fIpc.blockNumber() > day ? fIpc.blockNumber() - day : 1;
 
+        emit beforeLoadLogs();
         foreach ( const FilterInfo info, fList ) {
             if ( !info.value(FilterActiveRole).toBool() ) {
                 continue;
             }
 
+            QStringList addresses;
             addresses.append(info.value(FilterAddressRole).toString());
             const QStringList infoTopics = info.value(FilterTopicsRole).toStringList();
-            if ( infoTopics.length() > 0 ) {
-                topics += infoTopics;
-            }
+            fIpc.loadLogs(addresses, infoTopics, fromBlock);
         }
-
-        quint64 day = settings.value("geth/logsize", 7200).toLongLong();
-        quint64 fromBlock = fIpc.blockNumber() > day ? fIpc.blockNumber() - day : 1;
-
-        emit beforeLoadLogs();
-        fIpc.loadLogs(addresses, topics, fromBlock);
     }
 
     void FilterModel::reload() {
@@ -190,7 +184,7 @@ namespace Etherwall {
             const QJsonDocument jsonDoc = QJsonDocument::fromJson(val.toUtf8(), &parseError);
 
             if ( parseError.error != QJsonParseError::NoError ) {
-                EtherLog::logMsg("Error parsing stored filter: " + parseError.errorString(), LS_Error);
+                DbixLog::logMsg("Error parsing stored filter: " + parseError.errorString(), LS_Error);
             } else {
                 const FilterInfo info(jsonDoc.object());
                 fList.append(info);

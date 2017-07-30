@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file FirstTimeDialog.qml
  * @author Ales Katona <almindor@gmail.com>
@@ -102,8 +102,8 @@ Window {
 
                 onTextChanged: {
                     saveButton.refresh()
-                    // if we have a full address on ETH main chain, we can query etherscan.io for the ABI
-                    if ( text.length == 42 && settings.valueBool("geth/hardfork") && !ipc.testnet ) {
+                    // if we have a full address on DBIX main chain, we can query dbixscan.io for the ABI
+                    if ( text.length == 42 && !ipc.testnet ) {
                         contractModel.requestAbi(text)
                     }
                 }

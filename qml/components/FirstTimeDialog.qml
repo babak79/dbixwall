@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file FirstTimeDialog.qml
  * @author Ales Katona <almindor@gmail.com>
@@ -39,7 +39,6 @@ Window {
         setY(Screen.height / 2.0 - height / 2.0)
     }
 
-
     property bool done: false
 
     Column {
@@ -50,26 +49,62 @@ Window {
         Text {
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.margins: 0.2 * dpi
-            font.pixelSize: 0.2 * dpi
+            anchors.margins: 0.1 * dpi
+            font.pixelSize: 0.16 * dpi
             wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-            text: qsTr("Please confirm options for Geth before running for the first time")
+            text: qsTr("Please review settings before first run.")
         }
 
-        Text {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.margins: 0.2 * dpi
-            font.pixelSize: 0.2 * dpi
-            font.bold: true
-            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-            text: qsTr("Ethereum blockchain grows rapidly and requires at least 20GB of space. Make sure to choose an appropriate data directory with enough space left.")
+        Item {
+            height: 0.5 * dpi
+            anchors {
+                left: parent.left
+                right: parent.right
+            }
+
+            Text {
+                visible: content.thinClient
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 0.1 * dpi
+                font.pixelSize: 0.16 * dpi
+                font.bold: true
+                textFormat: Text.RichText
+                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                onLinkActivated: Qt.openUrlExternally(link)
+                text: qsTr("Thin client is recommended due to chaindata size.")
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.NoButton // we don't want to eat clicks on the Text
+                    cursorShape: parent.hoveredLink ? Qt.PointingHandCursor : Qt.ArrowCursor
+                }
+            }
+
+            Text {
+                visible: !content.thinClient
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 0.1 * dpi
+                font.pixelSize: 0.16 * dpi
+                font.bold: true
+                textFormat: Text.RichText
+                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                onLinkActivated: Qt.openUrlExternally(link)
+                text: qsTr("Dubaicoin blockchain has no support for thin client for now. Only full node is supported.")
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.NoButton // we don't want to eat clicks on the Text
+                    cursorShape: parent.hoveredLink ? Qt.PointingHandCursor : Qt.ArrowCursor
+                }
+            }
         }
 
         SettingsContent {
+            id: content
             anchors.left: parent.left
             anchors.right: parent.right
             height: parent.height / 2.0
+            hideTrezor: true
         }
 
         Row {
@@ -83,10 +118,9 @@ Window {
                 height: 0.6 * dpi
 
                 onClicked: {
+                    done = true
                     ipc.init();
-                    settings.setValue("program/firstrun", new Date())
-                    // set hf decision too so we don't get pestered
-                    settings.setValue("geth/hardfork", settings.value("geth/hardfork", true))
+                    settings.setValue("program/v2firstrun", new Date())
 
                     ftWindow.close()
                 }

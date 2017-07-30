@@ -3,7 +3,7 @@
 #include <QDebug>
 #include "helpers.h"
 
-namespace Etherwall {
+namespace Dbixwall {
 
     // ***************************** FilterInfo ***************************** //
 
@@ -283,6 +283,12 @@ namespace Etherwall {
         }
 
         if ( fBaseType == "bytes" ) {
+            QString sVal = val.toString();
+            if ( sVal.startsWith("0x") && sVal.size() > 2 ) { // hex value
+                sVal.remove(0, 2);
+                return encode(QByteArray::fromHex(sVal.toUtf8()));
+            }
+            // otherwise consider binary (strings)
             return encode(val.toByteArray());
         }
 
@@ -306,7 +312,7 @@ namespace Etherwall {
             throw QString("Invalid argument encode value for " + fBaseType + " expected bytes");
         }
 
-        return encodeBytes(bytes);
+        return encodeBytes(bytes, fM);
     }
 
     const QString ContractArg::encode(int number) const {
@@ -384,7 +390,7 @@ namespace Etherwall {
             throw QString("Byte array too large for static bytes" + QString::number(fixedSize));
         }
 
-        const QString sizePrefix = fixedSize == 0 ? encodeInt(bytes.size()) : ""; // static has no size prefix
+        const QString sizePrefix = (fixedSize <= 0 ? encodeInt(bytes.size()) : ""); // static has no size prefix
         int coef = bytes.size() / 64;
         int requestedSize = 32 * (coef + 1);
 
@@ -731,9 +737,9 @@ namespace Etherwall {
 
     const QVariant ContractInfo::value(const int role) const {
         switch ( role ) {
-            case ContractRoles::ContractNameRole: return QVariant(fName);
-            case ContractRoles::AddressRole: return QVariant(fAddress);
-            case ContractRoles::ABIRole: return QVariant(QString(QJsonDocument(fABI).toJson()));
+            case ContractNameRole: return QVariant(fName);
+            case AddressRole: return QVariant(fAddress);
+            case ABIRole: return QVariant(QString(QJsonDocument(fABI).toJson()));
         }
 
         return QVariant();

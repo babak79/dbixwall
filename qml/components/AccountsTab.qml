@@ -1,15 +1,15 @@
 /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file AccountsTab.qml
  * @author Ales Katona <almindor@gmail.com>
@@ -80,8 +80,8 @@ Tab {
                 height: newAccountButton.height
                 model: currencyModel
                 textRole: "name"
-                onCurrentIndexChanged: {
-                    currencyModel.setCurrencyIndex(currentIndex);
+                onActivated: {
+                    currencyModel.setCurrencyIndex(index);
                 }
             }
 
@@ -123,13 +123,10 @@ Tab {
             }
         }
 
-        PasswordDialog {
-            id: accountDeleteDialog
-            //standardButtons: StandardButton.Ok | StandardButton.Cancel
-
-            onAccepted: {
-                accountModel.deleteAccount(password, accountView.currentRow);
-            }
+        ConfirmDialog {
+            id: accountRemoveDialog
+            title: qsTr("Confirm removal of account")
+            onYes: accountModel.removeAccount(accountModel.selectedAccount)
         }
 
         QRExportDialog {
@@ -151,6 +148,10 @@ Tab {
             }
         }
 
+        AccountDetails {
+            id: accountDetails
+        }
+
         TableView {
             id: accountView
             anchors.left: parent.left
@@ -158,15 +159,25 @@ Tab {
             height: parent.height - newAccountButton.height - parent.spacing
 
             TableViewColumn {
-                role: "index"
-                title: qsTr("#")
+                role: "default"
+                title: "☑"
                 width: 0.3 * dpi
+                resizable: false
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            TableViewColumn {
+                role: "deviceType"
+                title: " ⊡"
+                width: 0.3 * dpi
+                resizable: false
+                horizontalAlignment: Text.AlignLeft
             }
 
             TableViewColumn {
                 role: show_hashes ? "hash" : "alias"
                 title: qsTr("Account")
-                width: 4 * dpi
+                width: 4.75 * dpi
             }
 
             TableViewColumn {
@@ -174,12 +185,6 @@ Tab {
                 role: "balance"
                 title: qsTr("Balance ") + "(" + currencyModel.currencyName + ")"
                 width: 2.5 * dpi
-            }
-            TableViewColumn {
-                horizontalAlignment: Text.AlignRight
-                role: "transactions"
-                title: qsTr("Sent Trans.")
-                width: 1 * dpi
             }
 
             // TODO: fix selection for active row first
@@ -202,39 +207,52 @@ Tab {
                 id: rowMenu
 
                 MenuItem {
+                    text: qsTr("Details", "account")
+                    onTriggered: accountDetails.open()
+                }
+
+                MenuItem {
+                    text: qsTr("Set as default")
+                    onTriggered: accountModel.setAsDefault(accountModel.selectedAccount)
+                }
+
+                MenuItem {
                     text: qsTr("Alias Account Name")
-                    onTriggered: {
-                        accountRenameDialog.openFocused("Rename " + accountModel.selectedAccount)
-                    }
+                    onTriggered: accountRenameDialog.openFocused("Rename " + accountModel.selectedAccount)
                 }
 
                 MenuItem {
                     text: qsTr("Copy")
-                    onTriggered: {
-                        clipboard.setText(accountModel.selectedAccount)
-                    }
+                    onTriggered: clipboard.setText(accountModel.selectedAccount)
                 }
 
                 MenuItem {
                     text: qsTr("Find on blockchain explorer")
                     onTriggered: {
-                        var url = "http://" + (ipc.testnet ? "testnet." : "") + "etherscan.io/address/" + accountModel.selectedAccount
+                        var url = "http://" + (ipc.testnet ? "testnet." : "") + "dbixscan.io/addr/" + accountModel.selectedAccount
                         Qt.openUrlExternally(url)
                     }
                 }
 
                 MenuItem {
-                    text: qsTr("Export geth account to directory")
+                    text: qsTr("Remove", "account")
+                    visible: accountModel.selectedAccountHDPath
                     onTriggered: {
-                        fileExportDialog.open(helpers.exportAddress(accountModel.selectedAccount, ipc.testnet))
+                        accountRemoveDialog.msg = qsTr("Remove", "account") + " " + accountModel.selectedAccount + ' <a href="http://www.etherwall.com/faq/#removeaccount">?</a>'
+                        accountRemoveDialog.open()
                     }
                 }
 
                 MenuItem {
-                    text: qsTr("Export geth account to QR Code")
-                    onTriggered: {
-                        qrExportDialog.open(helpers.exportAddress(accountModel.selectedAccount, ipc.testnet), accountModel.selectedAccount)
-                    }
+                    visible: !accountModel.selectedAccountHDPath
+                    text: qsTr("Export gdbix account to directory")
+                    onTriggered: fileExportDialog.open(helpers.exportAddress(accountModel.selectedAccount, ipc.testnet))
+                }
+
+                MenuItem {
+                    visible: !accountModel.selectedAccountHDPath
+                    text: qsTr("Export gdbix account to QR Code")
+                    onTriggered: qrExportDialog.open(helpers.exportAddress(accountModel.selectedAccount, ipc.testnet), accountModel.selectedAccount)
                 }
             }
 

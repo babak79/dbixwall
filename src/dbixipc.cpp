@@ -1,24 +1,24 @@
     /*
-    This file is part of etherwall.
-    etherwall is free software: you can redistribute it and/or modify
+    This file is part of dbixwall.
+    dbixwall is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
-    etherwall is distributed in the hope that it will be useful,
+    dbixwall is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
     You should have received a copy of the GNU General Public License
-    along with etherwall. If not, see <http://www.gnu.org/licenses/>.
+    along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
-/** @file etheripc.cpp
+/** @file dbixipc.cpp
  * @author Ales Katona <almindor@gmail.com>
  * @date 2015
  *
- * Ethereum IPC client implementation
+ * Dubaicoin IPC client implementation
  */
 
-#include "etheripc.h"
+#include "dbixipc.h"
 #include "helpers.h"
 #include <QSettings>
 #include <QFileInfo>
@@ -28,7 +28,7 @@
     #include <windows.h>
 #endif
 
-namespace Etherwall {
+namespace Dbixwall {
 
 // *************************** RequestIPC **************************** //
     int RequestIPC::sCallID = 0;
@@ -71,73 +71,62 @@ namespace Etherwall {
         return fBurden;
     }
 
-// *************************** EtherIPC **************************** //
+// *************************** DbixIPC **************************** //
 
-    EtherIPC::EtherIPC(const QString& ipcPath, GethLog& gethLog) :
-        fPath(ipcPath), fBlockFilterID(), fClosingApp(false), fPeerCount(0), fActiveRequest(None),
-        fGeth(), fStarting(0), fGethLog(gethLog),
+    //DbixIPC::DbixIPC(GdbixLog& gdbixLog) :
+	DbixIPC::DbixIPC(const QString& ipcPath, GdbixLog& gdbixLog) :
+        fPath(), fBlockFilterID(), fClosingApp(false), fPeerCount(0), fActiveRequest(None),
+        fGdbix(), fStarting(0), fGdbixLog(gdbixLog),
         fSyncing(false), fCurrentBlock(0), fHighestBlock(0), fStartingBlock(0),
         fConnectAttempts(0), fKillTime(), fExternal(false), fEventFilterID()
     {
-        connect(&fSocket, (void (QLocalSocket::*)(QLocalSocket::LocalSocketError))&QLocalSocket::error, this, &EtherIPC::onSocketError);
-        connect(&fSocket, &QLocalSocket::readyRead, this, &EtherIPC::onSocketReadyRead);
-        connect(&fSocket, &QLocalSocket::connected, this, &EtherIPC::connectedToServer);
-        connect(&fSocket, &QLocalSocket::disconnected, this, &EtherIPC::disconnectedFromServer);
-        connect(&fGeth, &QProcess::started, this, &EtherIPC::connectToServer);
+        connect(&fSocket, (void (QLocalSocket::*)(QLocalSocket::LocalSocketError))&QLocalSocket::error, this, &DbixIPC::onSocketError);
+        connect(&fSocket, &QLocalSocket::readyRead, this, &DbixIPC::onSocketReadyRead);
+        connect(&fSocket, &QLocalSocket::connected, this, &DbixIPC::connectedToServer);
+        connect(&fSocket, &QLocalSocket::disconnected, this, &DbixIPC::disconnectedFromServer);
+        connect(&fGdbix, &QProcess::started, this, &DbixIPC::connectToServer);
 
         const QSettings settings;
 
-        fTimer.setInterval(settings.value("ipc/interval", 10).toInt() * 1000);
-        connect(&fTimer, &QTimer::timeout, this, &EtherIPC::onTimer);
+        connect(&fTimer, &QTimer::timeout, this, &DbixIPC::onTimer);
     }
 
-    EtherIPC::~EtherIPC() {
-        fGeth.kill();
+    DbixIPC::~DbixIPC() {
+        fGdbix.kill();
     }
 
-    void EtherIPC::init() {        
+    void DbixIPC::init() {
+        QStringList args = buildGdbixArgs(); // has to run first
+
         fConnectAttempts = 0;
-        if ( fStarting <= 0 ) { // try to connect without starting geth
-            EtherLog::logMsg("Etherwall starting", LS_Info);
+        if ( fStarting <= 0 ) { // try to connect without starting gdbix
+            DbixLog::logMsg("Dbixwall starting", LS_Info);
             fStarting = 1;
             emit startingChanged(fStarting);
             return connectToServer();
         }
 
-        const QSettings settings;
+        QSettings settings;
 
-        const QString progStr = settings.value("geth/path", DefaultGethPath()).toString();
-        const QString argStr = settings.value("geth/args", DefaultGethArgs).toString();
-        const QString ddStr = settings.value("geth/datadir", DefaultDataDir).toString();
-        QStringList args = (argStr + " --datadir " + ddStr).split(' ', QString::SkipEmptyParts);
-        bool testnet = settings.value("geth/testnet", false).toBool();
-        if ( testnet ) {
-            args.append("--testnet");
-        }
-        bool hardfork = settings.value("geth/hardfork", true).toBool();
-        if ( hardfork ) {
-            args.append("--support-dao-fork");
-        } else {
-            args.append("--oppose-dao-fork");
-        }
+        const QString progStr = settings.value("gdbix/path", DefaultGdbixPath()).toString();
 
         QFileInfo info(progStr);
         if ( !info.exists() || !info.isExecutable() ) {
             fStarting = -1;
             emit startingChanged(-1);
-            setError("Could not find Geth. Please check Geth path and try again.");
+            setError("Could not find Gdbix. Please check Gdbix path and try again.");
             return bail();
         }
 
-        EtherLog::logMsg("Geth starting " + progStr + " " + args.join(" "), LS_Info);
+        DbixLog::logMsg("Gdbix starting " + progStr + " " + args.join(" "), LS_Info);
         fStarting = 2;
 
-        fGethLog.attach(&fGeth);
-        fGeth.start(progStr, args);
+        fGdbixLog.attach(&fGdbix);
+        fGdbix.start(progStr, args);
         emit startingChanged(0);
     }
 
-    void EtherIPC::waitConnect() {
+    void DbixIPC::waitConnect() {
         if ( fStarting == 1 ) {
             return init();
         }
@@ -146,7 +135,7 @@ namespace Etherwall {
             return connectionTimeout();
         }
 
-        if ( ++fConnectAttempts < 10 ) {
+        if ( ++fConnectAttempts < 20 ) {
             if ( fSocket.state() == QLocalSocket::ConnectingState ) {
                 fSocket.abort();
             }
@@ -157,104 +146,95 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::connectToServer() {
+    void DbixIPC::connectToServer() {
         fActiveRequest = RequestIPC(Full);
         emit busyChanged(getBusy());
         if ( fSocket.state() != QLocalSocket::UnconnectedState ) {
             setError("Already connected");
-            return bail();
+            return bail(true);
         }
 
         fSocket.connectToServer(fPath);
         if ( fConnectAttempts == 0 ) {
             if ( fStarting == 1 ) {
-                EtherLog::logMsg("Checking to see if there is an already running geth...");
+                DbixLog::logMsg("Checking to see if there is an already running gdbix...");
             } else {
-                EtherLog::logMsg("Connecting to IPC socket " + fPath);
+                DbixLog::logMsg("Connecting to IPC socket " + fPath);
             }
         }
 
         QTimer::singleShot(2000, this, SLOT(waitConnect()));
     }
 
-    void EtherIPC::connectedToServer() {
+    void DbixIPC::connectedToServer() {
         done();
 
         getClientVersion();
-        getBlockNumber(); // initial
+        getBlockNumber();
         newBlockFilter();
+        getSyncing();
         getNetVersion();
 
         if ( fStarting == 1 ) {
             fExternal = true;
             emit externalChanged(true);
-            fGethLog.append("Attached to external geth, see logs in terminal window.");
+            fGdbixLog.append("Attached to external gdbix, see logs in terminal window.");
         }
         fStarting = 3;
-        EtherLog::logMsg("Connected to IPC socket");
+        DbixLog::logMsg("Connected to IPC socket");
     }
 
-    void EtherIPC::connectionTimeout() {
+    void DbixIPC::connectionTimeout() {
         if ( fSocket.state() != QLocalSocket::ConnectedState ) {
             fSocket.abort();
             fStarting = -1;
-            setError("Unable to establish IPC connection to Geth. Fix path to Geth and try again.");
+            emit startingChanged(fStarting);
+            setError("Unable to establish IPC connection to Gdbix. Fix path to Gdbix and try again.");
             bail();
         }
     }
 
-    bool EtherIPC::getBusy() const {
+    bool DbixIPC::getBusy() const {
         return (fActiveRequest.burden() != None);
     }
 
-    bool EtherIPC::getExternal() const {
+    bool DbixIPC::getExternal() const {
         return fExternal;
     }
 
-    bool EtherIPC::getStarting() const {
+    bool DbixIPC::getStarting() const {
         return (fStarting == 1 || fStarting == 2);
     }
 
-    bool EtherIPC::getClosing() const {
+    bool DbixIPC::getClosing() const {
         return fClosingApp;
     }
 
-    bool EtherIPC::getHardForkReady() const {
-        const int vn = parseVersionNum();
-        return ( vn >= 104010 );
-    }
-
-    const QString& EtherIPC::getError() const {
+    const QString& DbixIPC::getError() const {
         return fError;
     }
 
-    int EtherIPC::getCode() const {
+    int DbixIPC::getCode() const {
         return fCode;
     }
 
 
-    void EtherIPC::setInterval(int interval) {
+    void DbixIPC::setInterval(int interval) {
+        QSettings settings;
+        settings.setValue("ipc/interval", (int) (interval / 1000));
         fTimer.setInterval(interval);
     }
 
-    bool EtherIPC::getTestnet() const {
-        return fNetVersion == 2;
+    bool DbixIPC::getTestnet() const {
+        return fNetVersion == 4;
     }
 
-    const QString EtherIPC::getNetworkPostfix() const {
-        QSettings settings;
-        QString postfix = settings.value("geth/hardfork", true).toBool() ? "/eth" : "/etc";
-        if ( getTestnet() ) {
-            postfix += "/morden";
-        } else {
-            postfix += "/homestead";
-        }
-
-        return postfix;
+    const QString DbixIPC::getNetworkPostfix() const {
+        return Helpers::networkPostfix(fNetVersion);
     }
 
-    bool EtherIPC::killGeth() {
-        if ( fGeth.state() == QProcess::NotRunning ) {
+    bool DbixIPC::killGdbix() {
+        if ( fGdbix.state() == QProcess::NotRunning ) {
             return true;
         }
 
@@ -262,23 +242,23 @@ namespace Etherwall {
             fKillTime.start();
 #ifdef Q_OS_WIN32
             SetConsoleCtrlHandler(NULL, true);
-            AttachConsole(fGeth.processId());
+            AttachConsole(fGdbix.processId());
             GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
             FreeConsole();
 #else
-            fGeth.terminate();
+            fGdbix.terminate();
 #endif
         } else if ( fKillTime.elapsed() > 6000 ) {
-            qDebug() << "Geth did not exit in 6 seconds. Killing...\n";
-            fGeth.kill();
+            qDebug() << "Gdbix did not exit in 6 seconds. Killing...\n";
+            fGdbix.kill();
             return true;
         }
 
         return false;
     }
 
-    bool EtherIPC::closeApp() {
-        EtherLog::logMsg("Closing etherwall");
+    bool DbixIPC::closeApp() {
+        DbixLog::logMsg("Closing dbixwall");
         fClosingApp = true;
         fTimer.stop();
         emit closingChanged(true);
@@ -312,10 +292,10 @@ namespace Etherwall {
             return false;
         }
 
-        return killGeth();
+        return killGdbix();
     }
 
-    void EtherIPC::registerEventFilters(const QStringList& addresses, const QStringList& topics) {
+    void DbixIPC::registerEventFilters(const QStringList& addresses, const QStringList& topics) {
         if ( !fEventFilterID.isEmpty() ) {
             uninstallFilter(fEventFilterID);
             fEventFilterID.clear();
@@ -326,13 +306,13 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::loadLogs(const QStringList& addresses, const QStringList& topics, quint64 fromBlock) {
+    void DbixIPC::loadLogs(const QStringList& addresses, const QStringList& topics, quint64 fromBlock) {
         if ( addresses.length() > 0 ) {
             getLogs(addresses, topics, fromBlock);
         }
     }
 
-    void EtherIPC::disconnectedFromServer() {
+    void DbixIPC::disconnectedFromServer() {
         if ( fClosingApp ) { // expected
             return;
         }
@@ -341,30 +321,30 @@ namespace Etherwall {
         bail();
     }
 
-    void EtherIPC::getAccounts() {
-        fAccountList.clear();
+    void DbixIPC::getAccounts() {
         if ( !queueRequest(RequestIPC(GetAccountRefs, "personal_listAccounts", QJsonArray())) ) {
             return bail();
         }
     }
 
-    void EtherIPC::handleGetAccounts() {
+    void DbixIPC::handleGetAccounts() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
         }
 
         QJsonArray refs = jv.toArray();
+        QStringList accounts;
         foreach( QJsonValue r, refs ) {
             const QString hash = r.toString("INVALID");
-            fAccountList.append(AccountInfo(hash, QString(), 0));
+            accounts.append(hash);
         }
 
-        emit getAccountsDone(fAccountList);
+        emit getAccountsDone(accounts);
         done();
     }
 
-    bool EtherIPC::refreshAccount(const QString& hash, int index) {
+    bool DbixIPC::refreshAccount(const QString& hash, int index) {
         if ( getBalance(hash, index) ) {
             return getTransactionCount(hash, index);
         }
@@ -372,7 +352,7 @@ namespace Etherwall {
         return false;
     }
 
-    bool EtherIPC::getBalance(const QString& hash, int index) {
+    bool DbixIPC::getBalance(const QString& hash, int index) {
         QJsonArray params;
         params.append(hash);
         params.append(QString("latest"));
@@ -384,7 +364,7 @@ namespace Etherwall {
         return true;
     }
 
-    bool EtherIPC::getTransactionCount(const QString& hash, int index) {
+    bool DbixIPC::getTransactionCount(const QString& hash, int index) {
         QJsonArray params;
         params.append(hash);
         params.append(QString("latest"));
@@ -397,21 +377,20 @@ namespace Etherwall {
     }
 
 
-    void EtherIPC::handleAccountBalance() {
+    void DbixIPC::handleAccountBalance() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
         }
 
-        const QString decStr = Helpers::toDecStrEther(jv);
+        const QString decStr = Helpers::toDecStrDbix(jv);
         const int index = fActiveRequest.getIndex();
-        fAccountList[index].setBalance(decStr);
 
-        emit accountChanged(fAccountList.at(index));
+        emit accountBalanceChanged(index, decStr);
         done();
     }
 
-    void EtherIPC::handleAccountTransactionCount() {
+    void DbixIPC::handleAccountTransactionCount() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
@@ -421,13 +400,12 @@ namespace Etherwall {
         const BigInt::Vin bv(hexStr, 16);
         quint64 count = bv.toUlong();
         const int index = fActiveRequest.getIndex();
-        fAccountList[index].setTransactionCount(count);
 
-        emit accountChanged(fAccountList.at(index));
+        emit accountSentTransChanged(index, count);
         done();
     }
 
-    void EtherIPC::newAccount(const QString& password, int index) {
+    void DbixIPC::newAccount(const QString& password, int index) {
         QJsonArray params;
         params.append(password);
         if ( !queueRequest(RequestIPC(NewAccount, "personal_newAccount", params, index)) ) {
@@ -435,7 +413,7 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::handleNewAccount() {
+    void DbixIPC::handleNewAccount() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
@@ -446,33 +424,13 @@ namespace Etherwall {
         done();
     }
 
-    void EtherIPC::deleteAccount(const QString& hash, const QString& password, int index) {
-        QJsonArray params;
-        params.append(hash);
-        params.append(password);        
-        if ( !queueRequest(RequestIPC(DeleteAccount, "personal_deleteAccount", params, index)) ) {
-            return bail();
-        }
-    }
-
-    void EtherIPC::handleDeleteAccount() {
-        QJsonValue jv;
-        if ( !readReply(jv) ) {
-            return bail();
-        }
-
-        const bool result = jv.toBool(false);
-        emit deleteAccountDone(result, fActiveRequest.getIndex());
-        done();
-    }
-
-    void EtherIPC::getBlockNumber() {
+    void DbixIPC::getBlockNumber() {
         if ( !queueRequest(RequestIPC(NonVisual, GetBlockNumber, "eth_blockNumber")) ) {
             return bail();
         }
     }
 
-    void EtherIPC::handleGetBlockNumber() {
+    void DbixIPC::handleGetBlockNumber() {
         quint64 result;
         if ( !readNumber(result) ) {
              return bail();
@@ -483,17 +441,33 @@ namespace Etherwall {
         done();
     }
 
-    quint64 EtherIPC::blockNumber() const {
+    quint64 DbixIPC::blockNumber() const {
         return fBlockNumber;
     }
 
-    void EtherIPC::getPeerCount() {
+    int DbixIPC::network() const
+    {
+        return fNetVersion;
+    }
+
+    quint64 DbixIPC::nonceStart() const
+    {
+        switch ( fNetVersion ) {
+            case 2: return 0x0100000;
+            case 3: return 0x0100000;
+            case 4: return 0;
+        }
+
+        return 0;
+    }
+
+    void DbixIPC::getPeerCount() {
         if ( !queueRequest(RequestIPC(NonVisual, GetPeerCount, "net_peerCount")) ) {
             return bail();
         }
     }
 
-    void EtherIPC::handleGetPeerCount() {
+    void DbixIPC::handleGetPeerCount() {
         if ( !readNumber(fPeerCount) ) {
              return bail();
         }
@@ -502,27 +476,23 @@ namespace Etherwall {
         done();
     }
 
-    void EtherIPC::sendTransaction(const QString& from, const QString& to, const QString& valStr, const QString& password,
-                                   const QString& gas, const QString& gasPrice, const QString& data) {
+    void DbixIPC::sendTransaction(const Dubaicoin::Tx& tx, const QString& password) {
         QJsonArray params;
-        const QString valHex = Helpers::toHexWeiStr(valStr);
         QJsonObject p;
-        p["from"] = from;
-        p["value"] = valHex;
-        if ( !to.isEmpty() ) {
-            p["to"] = to;
+        p["from"] = tx.fromStr();
+        p["value"] = tx.valueHex();
+        if ( !tx.isContractDeploy() ) {
+            p["to"] = tx.toStr();
         }
-        if ( !gas.isEmpty() ) {
-            const QString gasHex = Helpers::decStrToHexStr(gas);
-            p["gas"] = gasHex;
+        if ( tx.hasDefinedGas() ) {
+            p["gas"] = tx.gasHex();
         }
-        if ( !gasPrice.isEmpty() ) {
-            const QString gasPriceHex = Helpers::toHexWeiStr(gasPrice);
-            p["gasPrice"] = gasPriceHex;
-            EtherLog::logMsg(QString("Trans gasPrice: ") + gasPrice + QString(" HexValue: ") + gasPriceHex);
+        if ( tx.hasDefinedGasPrice() ) {
+            p["gasPrice"] = tx.gasPriceHex();
+            DbixLog::logMsg(QString("Trans gasPrice: ") + tx.gasPriceStr() + QString(" HexValue: ") + tx.gasPriceHex());
         }
-        if ( !data.isEmpty() ) {
-            p["data"] = data;
+        if ( tx.hasData() ) {
+            p["data"] = tx.dataHex();
         }
 
         params.append(p);
@@ -533,7 +503,57 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::handleSendTransaction() {
+    void DbixIPC::signTransaction(const Dubaicoin::Tx &tx, const QString &password)
+    {
+        qDebug() << "called sendTX with manual signing\n";
+        unlockAccount(tx.fromStr(), password, 5, 0);
+        signTransaction(tx);
+    }
+
+    void DbixIPC::signTransaction(const Dubaicoin::Tx &tx)
+    {
+        QJsonArray params;
+        QJsonObject p;
+        p["from"] = tx.fromStr();
+        p["value"] = tx.valueHex();
+        if ( !tx.isContractDeploy() ) {
+            p["to"] = tx.toStr();
+        }
+        if ( tx.hasDefinedGas() ) {
+            p["gas"] = tx.gasHex();
+        }
+        if ( tx.hasDefinedGasPrice() ) {
+            p["gasPrice"] = tx.gasPriceHex();
+            DbixLog::logMsg(QString("Trans gasPrice: ") + tx.gasPriceStr() + QString(" HexValue: ") + tx.gasPriceHex());
+        }
+        if ( tx.hasData() ) {
+            p["data"] = tx.dataHex();
+        }
+        p["nonce"] = tx.nonceHex();
+
+        params.append(p);
+
+        if ( !queueRequest(RequestIPC(SignTransaction, "eth_signTransaction", params)) ) {
+            return bail(true); // softbail
+        }
+    }
+
+    void DbixIPC::sendRawTransaction(const Dubaicoin::Tx &tx)
+    {
+        sendRawTransaction(Helpers::hexPrefix(tx.encodeRLP(true)));
+    }
+
+    void DbixIPC::sendRawTransaction(const QString &rlp)
+    {
+        QJsonArray params;
+        params.append(rlp);
+
+        if ( !queueRequest(RequestIPC(SendRawTransaction, "eth_sendRawTransaction", params)) ) {
+            return bail(true); // softbail
+        }
+    }
+
+    void DbixIPC::handleSendTransaction() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail(true); // softbail
@@ -544,7 +564,19 @@ namespace Etherwall {
         done();
     }
 
-    int EtherIPC::getConnectionState() const {
+    void DbixIPC::handleSignTransaction()
+    {
+        QJsonValue jv;
+        if ( !readReply(jv) ) {
+            return bail(true); // softbail
+        }
+
+        const QString hash = jv.toObject().value("raw").toString();
+        emit signTransactionDone(hash);
+        done();
+    }
+
+    int DbixIPC::getConnectionState() const {
         if ( fSocket.state() == QLocalSocket::ConnectedState ) {
             return 1; // TODO: add higher states per peer count!
         }
@@ -552,61 +584,83 @@ namespace Etherwall {
         return 0;
     }
 
-    void EtherIPC::unlockAccount(const QString& hash, const QString& password, int duration, int index) {
-        QJsonArray params;
-        params.append(hash);
-        params.append(password);
-
-        BigInt::Vin vinVal(duration);
-        QString strHex = QString(vinVal.toStr0xHex().data());
-        params.append(strHex);
-
-        if ( !queueRequest(RequestIPC(UnlockAccount, "personal_unlockAccount", params, index)) ) {
-            return bail();
-        }
-    }
-
-    void EtherIPC::handleUnlockAccount() {
-        QJsonValue jv;
-        if ( !readReply(jv) ) {
-            // special case, we def. need to remove all subrequests, but not stop timer
-            fRequestQueue.clear();
-            return bail(true);
-        }
-
-        const bool result = jv.toBool(false);
-
-        if ( !result ) {
-            setError("Unlock account failure");
-            emit error();
-        }
-        emit unlockAccountDone(result, fActiveRequest.getIndex());
-        done();
-    }
-
-    void EtherIPC::getGasPrice() {
+    void DbixIPC::getGasPrice() {
         if ( !queueRequest(RequestIPC(GetGasPrice, "eth_gasPrice")) ) {
             return bail();
         }
     }
 
-    void EtherIPC::handleGetGasPrice() {
+    void DbixIPC::handleGetGasPrice() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
         }
 
-        const QString decStr = Helpers::toDecStrEther(jv);
+        const QString decStr = Helpers::toDecStrDbix(jv);
 
         emit getGasPriceDone(decStr);
         done();
     }
 
-    quint64 EtherIPC::peerCount() const {
+    quint64 DbixIPC::peerCount() const {
         return fPeerCount;
     }
 
-    void EtherIPC::estimateGas(const QString& from, const QString& to, const QString& valStr,
+    void DbixIPC::ipcReady()
+    {
+        const QSettings settings;
+        setInterval(settings.value("ipc/interval", 10).toInt() * 1000); // re-set here, used for inheritance purposes
+        fTimer.start(); // should happen after filter creation, might need to move into last filter response handler
+        // if we connected to external gdbix, put that info in gdbix log
+        emit startingChanged(fStarting);
+        emit connectToServerDone();
+        emit connectionStateChanged();
+    }
+
+    bool DbixIPC::endpointWritable()
+    {
+        return fSocket.isWritable();
+    }
+
+    qint64 DbixIPC::endpointWrite(const QByteArray &data)
+    {
+        return fSocket.write(data);
+    }
+
+    const QByteArray DbixIPC::endpointRead()
+    {
+        return fSocket.readAll();
+    }
+
+    const QStringList DbixIPC::buildGdbixArgs()
+    {
+        QSettings settings;
+        QString argStr = settings.value("gdbix/args", DefaultGdbixArgs).toString();
+        const QString ddStr = settings.value("gdbix/datadir", DefaultDataDir).toString();
+
+        // check deprecated options and replace them
+        if ( argStr.contains("--light") || argStr.contains("--fast") ) {
+            argStr = argStr.replace("--light", "--syncmode=light");
+            argStr = argStr.replace("--fast", "--syncmode=fast");
+            settings.setValue("gdbix/args", argStr);
+            qDebug() << "replaced args\n";
+        }
+
+        QStringList args;
+        args.append("--nousb");
+        bool testnet = settings.value("gdbix/testnet", false).toBool();
+        fPath = DefaultIPCPath(ddStr, testnet);
+        if ( testnet ) { // gdbix 1.5.0+ only
+            args = (argStr + " --datadir " + ddStr + "/testnet").split(' ', QString::SkipEmptyParts);
+            args.append("--testnet");
+        } else {
+            args = (argStr + " --datadir " + ddStr).split(' ', QString::SkipEmptyParts);
+        }
+
+        return args;
+    }
+
+    void DbixIPC::estimateGas(const QString& from, const QString& to, const QString& valStr,
                                    const QString& gas, const QString& gasPrice, const QString& data) {
         const QString valHex = Helpers::toHexWeiStr(valStr);
         QJsonArray params;
@@ -625,7 +679,7 @@ namespace Etherwall {
             p["gasPrice"] = gasPriceHex;
         }
         if ( !data.isEmpty() ) {
-            p["data"] = data;
+            p["data"] = Helpers::hexPrefix(data);
         }
 
         params.append(p);
@@ -634,7 +688,7 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::handleEstimateGas() {
+    void DbixIPC::handleEstimateGas() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail(true); // probably gas too low
@@ -647,7 +701,7 @@ namespace Etherwall {
         done();
     }
 
-    void EtherIPC::newBlockFilter() {
+    void DbixIPC::newBlockFilter() {
         if ( !fBlockFilterID.isEmpty() ) {
             setError("Filter already set");
             return bail(true);
@@ -658,12 +712,12 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::newEventFilter(const QStringList& addresses, const QStringList& topics) {
+    void DbixIPC::newEventFilter(const QStringList& addresses, const QStringList& topics) {
         QJsonArray params;
         QJsonObject o;
         o["address"] = QJsonArray::fromStringList(addresses);
         if ( topics.length() > 0 && topics.at(0).length() > 0 ) {
-            o["topics"] = QJsonArray::fromStringList(topics);
+            o["topics"] = parseTopics(topics);
         }
         params.append(o);
 
@@ -672,7 +726,7 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::handleNewBlockFilter() {
+    void DbixIPC::handleNewBlockFilter() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
@@ -687,7 +741,7 @@ namespace Etherwall {
         done();
     }
 
-    void EtherIPC::handleNewEventFilter() {
+    void DbixIPC::handleNewEventFilter() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
@@ -702,7 +756,7 @@ namespace Etherwall {
         done();
     }
 
-    void EtherIPC::onTimer() {
+    void DbixIPC::onTimer() {
         getPeerCount();
         getSyncing();
 
@@ -717,10 +771,10 @@ namespace Etherwall {
         }
     }
 
-    int EtherIPC::parseVersionNum() const {
-        QRegExp reg("^Geth/v([0-9]+)\\.([0-9]+)\\.([0-9]+).*$");
+    int DbixIPC::parseVersionNum() const {
+        QRegExp reg("^Gdbix/v([0-9]+)\\.([0-9]+)\\.([0-9]+).*$");
         reg.indexIn(fClientVersion);
-        if ( reg.captureCount() == 3 ) try { // it's geth
+        if ( reg.captureCount() == 3 ) try { // it's gdbix
             return reg.cap(1).toInt() * 100000 + reg.cap(2).toInt() * 1000 + reg.cap(3).toInt();
         } catch ( ... ) {
             return 0;
@@ -729,13 +783,41 @@ namespace Etherwall {
         return 0;
     }
 
-    void EtherIPC::getSyncing() {
+    const QJsonArray DbixIPC::parseTopics(const QStringList &topics)
+    {
+        QJsonArray result;
+        foreach (const QString& topic, topics) {
+            if ( topic == "null" ) {
+                result.append(QJsonValue());
+            } else {
+                result.append(topic);
+            }
+        }
+
+        return result;
+    }
+
+    void DbixIPC::getSyncing() {
         if ( !queueRequest(RequestIPC(NonVisual, GetSyncing, "eth_syncing")) ) {
             return bail();
         }
     }
 
-    void EtherIPC::getFilterChanges(const QString& filterID) {
+    void DbixIPC::unlockAccount(const QString &hash, const QString &password, int duration, int index)
+    {
+        Q_UNUSED(duration); // lets just default here, hopefully gdbix does what parity now
+        QJsonArray params;
+        params.append(hash);
+        params.append(password);
+
+        // params.append(Helpers::toHexStr(duration));
+
+        if ( !queueRequest(RequestIPC(UnlockAccount, "personal_unlockAccount", params, index)) ) {
+            return bail();
+        }
+    }
+
+    void DbixIPC::getFilterChanges(const QString& filterID) {
         if ( filterID < 0 ) {
             setError("Filter ID invalid");
             return bail();
@@ -749,7 +831,7 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::handleGetFilterChanges() {
+    void DbixIPC::handleGetFilterChanges() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
@@ -770,7 +852,7 @@ namespace Etherwall {
         done();
     }
 
-    void EtherIPC::uninstallFilter(const QString& filter) {
+    void DbixIPC::uninstallFilter(const QString& filter) {
         if ( filter.isEmpty() ) {
             setError("Filter not set");
             return bail(true);
@@ -786,13 +868,13 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::getLogs(const QStringList& addresses, const QStringList& topics, quint64 fromBlock) {
+    void DbixIPC::getLogs(const QStringList& addresses, const QStringList& topics, quint64 fromBlock) {
         QJsonArray params;
         QJsonObject o;
         o["fromBlock"] = fromBlock == 0 ? "latest" : Helpers::toHexStr(fromBlock);
         o["address"] = QJsonArray::fromStringList(addresses);
         if ( topics.length() > 0 && topics.at(0).length() > 0 ) {
-            o["topics"] = QJsonArray::fromStringList(topics);
+            o["topics"] = parseTopics(topics);
         }
         params.append(o);
 
@@ -802,7 +884,12 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::handleUninstallFilter() {
+    bool DbixIPC::isThinClient() const
+    {
+        return false;
+    }
+
+    void DbixIPC::handleUninstallFilter() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
@@ -811,35 +898,35 @@ namespace Etherwall {
         done();
     }
 
-    void EtherIPC::getClientVersion() {
+    void DbixIPC::getClientVersion() {
         if ( !queueRequest(RequestIPC(NonVisual, GetClientVersion, "web3_clientVersion")) ) {
             return bail();
         }
     }
 
-    void EtherIPC::getNetVersion() {
+    void DbixIPC::getNetVersion() {
         if ( !queueRequest(RequestIPC(NonVisual, GetNetVersion, "net_version")) ) {
             return bail();
         }
     }
 
-    bool EtherIPC::getSyncingVal() const {
+    bool DbixIPC::getSyncingVal() const {
         return fSyncing;
     }
 
-    quint64 EtherIPC::getCurrentBlock() const {
+    quint64 DbixIPC::getCurrentBlock() const {
         return fCurrentBlock;
     }
 
-    quint64 EtherIPC::getHighestBlock() const {
+    quint64 DbixIPC::getHighestBlock() const {
         return fHighestBlock;
     }
 
-    quint64 EtherIPC::getStartingBlock() const {
+    quint64 DbixIPC::getStartingBlock() const {
         return fStartingBlock;
     }
 
-    void EtherIPC::getTransactionByHash(const QString& hash) {
+    void DbixIPC::getTransactionByHash(const QString& hash) {
         QJsonArray params;
         params.append(hash);
 
@@ -848,7 +935,7 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::handleGetTransactionByHash() {
+    void DbixIPC::handleGetTransactionByHash() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
@@ -858,7 +945,7 @@ namespace Etherwall {
         done();
     }
 
-    void EtherIPC::getBlockByHash(const QString& hash) {
+    void DbixIPC::getBlockByHash(const QString& hash) {
         QJsonArray params;
         params.append(hash);
         params.append(true); // get transaction bodies
@@ -868,7 +955,7 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::getBlockByNumber(quint64 blockNum) {
+    void DbixIPC::getBlockByNumber(quint64 blockNum) {
         QJsonArray params;
         params.append(Helpers::toHexStr(blockNum));
         params.append(true); // get transaction bodies
@@ -878,7 +965,7 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::handleGetBlock() {
+    void DbixIPC::handleGetBlock() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
@@ -891,7 +978,7 @@ namespace Etherwall {
         done();
     }
 
-    void EtherIPC::getTransactionReceipt(const QString& hash) {
+    void DbixIPC::getTransactionReceipt(const QString& hash) {
         QJsonArray params;
         params.append(hash);
 
@@ -900,7 +987,7 @@ namespace Etherwall {
         }
     }
 
-    void EtherIPC::handleGetTransactionReceipt() {
+    void DbixIPC::handleGetTransactionReceipt() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
@@ -911,7 +998,7 @@ namespace Etherwall {
         done();
     }
 
-    void EtherIPC::handleGetClientVersion() {
+    void DbixIPC::handleGetClientVersion() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
@@ -920,13 +1007,13 @@ namespace Etherwall {
         fClientVersion = jv.toString();
 
         const int vn = parseVersionNum();
-        if ( vn > 0 && vn < 100002 ) {
-            setError("Geth version 1.0.1 and older contain a critical bug! Please update immediately.");
+        if ( vn > 0 && vn < 104092 ) {
+            setError("Gdbix version 1.4.92 and older are not ready for the upcoming 2nd hard fork. Please update Gdbix to ensure you are ready.");
             emit error();
         }
 
-        if ( vn > 0 && vn < 103005 ) {
-            setError("Geth version 1.3.4 and older are Frontier versions. Please update to Homestead (1.3.5+)");
+        if ( vn > 0 && vn < 105000 ) {
+            setError("Gdbix version older than 1.5.0 is no longer supported. Please upgrade gdbix to 1.5.0+.");
             emit error();
         }
 
@@ -934,7 +1021,7 @@ namespace Etherwall {
         done();
     }
 
-    void EtherIPC::handleGetNetVersion() {
+    void DbixIPC::handleGetNetVersion() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
@@ -951,16 +1038,10 @@ namespace Etherwall {
         emit netVersionChanged(fNetVersion);
         done();
 
-        fTimer.start(); // should happen after filter creation, might need to move into last filter response handler
-        // if we connected to external geth, put that info in geth log
-
-        emit startingChanged(fStarting);
-        emit connectToServerDone();
-        emit connectionStateChanged();
-        emit hardForkReadyChanged(getHardForkReady());
+        ipcReady();
     }
 
-    void EtherIPC::handleGetSyncing() {
+    void DbixIPC::handleGetSyncing() {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return bail();
@@ -982,6 +1063,7 @@ namespace Etherwall {
         fCurrentBlock = Helpers::toQUInt64(syncing.value("currentBlock"));
         fHighestBlock = Helpers::toQUInt64(syncing.value("highestBlock"));
         fStartingBlock = Helpers::toQUInt64(syncing.value("startingBlock"));
+
         if ( !fSyncing ) {
             if ( !fBlockFilterID.isEmpty() ) {
                 uninstallFilter(fBlockFilterID);
@@ -994,7 +1076,28 @@ namespace Etherwall {
         done();
     }
 
-    void EtherIPC::bail(bool soft) {
+    void DbixIPC::handleUnlockAccount()
+    {
+        QJsonValue jv;
+        if ( !readReply(jv) ) {
+            // special case, we def. need to remove all subrequests, but not stop timer
+            fRequestQueue.clear();
+            return bail(true);
+        }
+
+        const bool result = jv.toBool(false);
+        qDebug() << "unlock account: " << result << "\n";
+
+        if ( !result ) {
+            setError("Unlock account failure");
+            emit error();
+        }
+
+        emit unlockAccountDone(result, fActiveRequest.getIndex());
+        done();
+    }
+
+    void DbixIPC::bail(bool soft) {
         qDebug() << "BAIL[" << soft << "]: " << fError << "\n";
 
         if ( !soft ) {
@@ -1006,29 +1109,28 @@ namespace Etherwall {
         errorOut();
     }
 
-    void EtherIPC::setError(const QString& error) {
+    void DbixIPC::setError(const QString& error) {
         fError = error;
-        EtherLog::logMsg(error, LS_Error);
+        DbixLog::logMsg(error, LS_Error);
     }
 
-    void EtherIPC::errorOut() {
+    void DbixIPC::errorOut() {
         emit error();
         emit connectionStateChanged();
         done();
     }
 
-    void EtherIPC::done() {
+    void DbixIPC::done() {
         fActiveRequest = RequestIPC(None);
         if ( !fRequestQueue.isEmpty() ) {
-            const RequestIPC request = fRequestQueue.first();
-            fRequestQueue.removeFirst();
+            const RequestIPC request = fRequestQueue.dequeue();
             writeRequest(request);
         } else {
             emit busyChanged(getBusy());
         }
     }
 
-    QJsonObject EtherIPC::methodToJSON(const RequestIPC& request) {
+    QJsonObject DbixIPC::methodToJSON(const RequestIPC& request) {
         QJsonObject result;
 
         result.insert("jsonrpc", QJsonValue(QString("2.0")));
@@ -1039,33 +1141,33 @@ namespace Etherwall {
         return result;
     }
 
-    bool EtherIPC::queueRequest(const RequestIPC& request) {
+    bool DbixIPC::queueRequest(const RequestIPC& request) {
         if ( fActiveRequest.burden() == None ) {
             return writeRequest(request);
         } else {
-            fRequestQueue.append(request);
+            fRequestQueue.enqueue(request);
             return true;
         }
     }
 
-    bool EtherIPC::writeRequest(const RequestIPC& request) {
+    bool DbixIPC::writeRequest(const RequestIPC& request) {
         fActiveRequest = request;
         if ( fActiveRequest.burden() == Full ) {
             emit busyChanged(getBusy());
         }
 
         QJsonDocument doc(methodToJSON(fActiveRequest));
-        const QString msg(doc.toJson());
+        const QString msg(doc.toJson(QJsonDocument::Compact));
 
-        if ( !fSocket.isWritable() ) {
+        if ( !endpointWritable() ) {
             setError("Socket not writeable");
             fCode = 0;
             return false;
         }
 
         const QByteArray sendBuf = msg.toUtf8();
-        EtherLog::logMsg("Sent: " + msg, LS_Debug);
-        const int sent = fSocket.write(sendBuf);
+        DbixLog::logMsg("Sent: " + msg, LS_Debug);
+        const int sent = endpointWrite(sendBuf);
 
         if ( sent <= 0 ) {
             setError("Error on socket write: " + fSocket.errorString());
@@ -1076,18 +1178,18 @@ namespace Etherwall {
         return true;
     }
 
-    bool EtherIPC::readData() {
-        fReadBuffer += QString(fSocket.readAll()).trimmed();
+    bool DbixIPC::readData() {
+        fReadBuffer += QString(endpointRead()).trimmed();
 
         if ( fReadBuffer.at(0) == '{' && fReadBuffer.at(fReadBuffer.length() - 1) == '}' && fReadBuffer.count('{') == fReadBuffer.count('}') ) {
-            EtherLog::logMsg("Received: " + fReadBuffer, LS_Debug);
+            DbixLog::logMsg("Received: " + fReadBuffer, LS_Debug);
             return true;
         }
 
         return false;
     }
 
-    bool EtherIPC::readReply(QJsonValue& result) {
+    bool DbixIPC::readReply(QJsonValue& result) {
         const QString data = fReadBuffer;
         fReadBuffer.clear();
 
@@ -1119,7 +1221,7 @@ namespace Etherwall {
         result = obj["result"];
 
         // get filter changes bugged, returns null on result array, see https://github.com/ethereum/go-ethereum/issues/2746
-        if ( result.isNull() && fActiveRequest.getType() == GetFilterChanges ) {
+        if ( result.isNull() && (fActiveRequest.getType() == GetFilterChanges || fActiveRequest.getType() == GetAccountRefs) ) {
             result = QJsonValue(QJsonArray());
         }
 
@@ -1146,7 +1248,7 @@ namespace Etherwall {
         return true;
     }
 
-    bool EtherIPC::readVin(BigInt::Vin& result) {
+    bool DbixIPC::readVin(BigInt::Vin& result) {
         QJsonValue jv;
         if ( !readReply(jv) ) {
             return false;
@@ -1158,7 +1260,7 @@ namespace Etherwall {
         return true;
     }
 
-    bool EtherIPC::readNumber(quint64& result) {
+    bool DbixIPC::readNumber(quint64& result) {
         BigInt::Vin r;
         if ( !readVin(r) ) {
             return false;
@@ -1168,12 +1270,12 @@ namespace Etherwall {
         return true;
     }
 
-    void EtherIPC::onSocketError(QLocalSocket::LocalSocketError err) {
+    void DbixIPC::onSocketError(QLocalSocket::LocalSocketError err) {
         fError = fSocket.errorString();
         fCode = err;
     }
 
-    void EtherIPC::onSocketReadyRead() {
+    void DbixIPC::onSocketReadyRead() {
         if ( !getBusy() ) {
             return; // probably error-ed out
         }
@@ -1183,12 +1285,15 @@ namespace Etherwall {
         }
 
         switch ( fActiveRequest.getType() ) {
+        case NoRequest: {
+            break;
+        }
         case NewAccount: {
                 handleNewAccount();
                 break;
             }
-        case DeleteAccount: {
-                handleDeleteAccount();
+        case UnlockAccount: {
+                handleUnlockAccount();
                 break;
             }
         case GetBlockNumber: {
@@ -1215,8 +1320,12 @@ namespace Etherwall {
                 handleSendTransaction();
                 break;
             }
-        case UnlockAccount: {
-                handleUnlockAccount();
+        case SignTransaction: {
+                handleSignTransaction();
+                break;
+            }
+        case SendRawTransaction: {
+                handleSendTransaction();
                 break;
             }
         case GetGasPrice: {
@@ -1271,7 +1380,6 @@ namespace Etherwall {
                 handleGetTransactionReceipt();
                 break;
             }
-        default: qDebug() << "Unknown reply: " << fActiveRequest.getType() << "\n"; break;
         }
     }
 

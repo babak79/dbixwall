@@ -14,11 +14,10 @@
         <file>components/CurrencyTab.qml</file>
         <file>components/CurrencyRow.qml</file>
         <file>components/ToolTip.qml</file>
-        <file>components/GethTab.qml</file>
+        <file>components/GdbixTab.qml</file>
         <file>components/FirstTimeDialog.qml</file>
         <file>components/SettingsContent.qml</file>
         <file>components/AccountDialog.qml</file>
-        <file>components/HardForkDialog.qml</file>
         <file>components/TransactionDialog.qml</file>
         <file>components/ContractsTab.qml</file>
         <file>components/ContractDetails.qml</file>
@@ -38,9 +37,12 @@
         <file>js/qqr.js</file>
         <file>components/QRCode.qml</file>
         <file>components/QRExportDialog.qml</file>
+        <file>components/PinMatrixDialog.qml</file>
+        <file>components/ButtonRequestDialog.qml</file>
+        <file>components/AccountDetails.qml</file>
     </qresource>
     <qresource prefix="/images">
-        <file alias="icon">images/icon.png</file>
+        <file alias="icon">images/dbix-256.png</file>
         <file alias="block">images/block.png</file>
         <file alias="connected3">images/high_connection.png</file>
         <file alias="connected2">images/medium_connection.png</file>
@@ -53,10 +55,9 @@
         <file alias="unlocked">images/unlocked.png</file>
         <file alias="gas">images/gas.png</file>
         <file alias="all">images/all.png</file>
-        <file alias="cc">images/cryptocompare.png</file>
         <file alias="btc">images/btc.png</file>
         <file alias="cad">images/cad.png</file>
-        <file alias="eth">images/eth.png</file>
+        <file alias="dbix">images/dbix.png</file>
         <file alias="eur">images/eur.png</file>
         <file alias="gbp">images/gbp.png</file>
         <file alias="usd">images/usd.png</file>

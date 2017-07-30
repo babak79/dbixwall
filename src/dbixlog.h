@@ -1,18 +1,18 @@
-#ifndef ETHERLOG_H
-#define ETHERLOG_H
+#ifndef DBIXLOG_H
+#define DBIXLOG_H
 
 #include <QObject>
 #include <QAbstractListModel>
 #include "types.h"
 
-namespace Etherwall {
+namespace Dbixwall {
 
-    class EtherLog : public QAbstractListModel
+    class DbixLog : public QAbstractListModel
     {
         Q_OBJECT
         Q_PROPERTY(int logLevel READ getLogLevel WRITE setLogLevel NOTIFY logLevelChanged)
     public:
-        EtherLog();
+        DbixLog();
 
         QHash<int, QByteArray> roleNames() const;
         int rowCount(const QModelIndex & parent = QModelIndex()) const;
@@ -32,4 +32,4 @@ namespace Etherwall {
 
 }
 
-#endif // ETHERLOG_H
+#endif // DBIXLOG_H

@@ -7,7 +7,7 @@
 #include "contractmodel.h"
 #include "filtermodel.h"
 
-namespace Etherwall {
+namespace Dbixwall {
 
     class EventModel : public QAbstractListModel
     {
