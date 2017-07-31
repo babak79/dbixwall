@@ -25,7 +25,7 @@ Dbixwall based on Etherwall is licensed under the GPLv3 license. See LICENSE for
 ## Donations
 
 #### DBIX
-`DBIX Address`
+`0xfb8dc1770A7Ad41e51e63A721EF6AaEf79cD69E6`
 
 #### BTC
 `163TwxYD6rZWxaszg1HHrN3UpDZM1rdu6p`
