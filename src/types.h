@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file types.h
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2015
  *
  * Types header
@@ -44,7 +44,7 @@ namespace Dbixwall {
 #endif
 
     static const quint64 SYNC_DEPTH = 10;
-    static const QString DefaultGdbixArgs = "--syncmode=fast --cache 512";
+	static const QString DefaultGdbixArgs = "--fast --cache 512";
     /*static const QString DbixWall_Cert = "-----BEGIN CERTIFICATE-----\n"
             "MIIDiDCCAnACCQCXJXqGOlAorjANBgkqhkiG9w0BAQsFADCBhTELMAkGA1UEBhMC\n"
             "Q0ExEDAOBgNVBAgMB0FsYmVydGExEDAOBgNVBAcMB0NhbGdhcnkxEjAQBgNVBAoM\n"
@@ -65,7 +65,7 @@ namespace Dbixwall {
             "0WThQ183ERexxwtYQ8qSn3L+kXCPJyVnazt7IJ3rylB9e6t6voaU/eNQUC7Mdwov\n"
             "Vw6Ar9fz+sQVccQQDREICKnnK1M+k8kk+g3c+rF3ISFlLPi981tWjGSTH685HH0q\n"
             "JkX2TxeYmZl+B/qvVorfPzWK7NoalCBvIxyxBeI3e67Ly0lRWAGIsWEtQP4=\n"
-            "-----END CERTIFICATE-----\n";*/
+            "-----END CERTIFICATE-----\n"; */
 
     const QString DefaultIPCPath(const QString& dataDir, bool testnet);
     const QString DefaultGdbixPath();
@@ -108,8 +108,7 @@ namespace Dbixwall {
     public:
         CurrencyInfo( const QString name, const float price );
         const QVariant value(const int role) const;
-        double recalculate(const double dbix) const;
-        const QString name() const;
+        double recalculate(const float dbix) const;
     private:
         QString fName;
         float fPrice;
@@ -120,15 +119,14 @@ namespace Dbixwall {
     enum RequestTypes {
         NoRequest,
         NewAccount,
-        UnlockAccount,
+        DeleteAccount,
         GetBlockNumber,
         GetAccountRefs,
         GetBalance,
         GetTransactionCount,
         GetPeerCount,
         SendTransaction,
-        SignTransaction,
-        SendRawTransaction,
+        UnlockAccount,
         GetGasPrice,
         EstimateGas,
         NewBlockFilter,
@@ -146,21 +144,17 @@ namespace Dbixwall {
 
     enum AccountRoles {
         HashRole = Qt::UserRole + 1,
-        DefaultRole,
         BalanceRole,
         TransCountRole,
         SummaryRole,
         AliasRole,
-        DeviceRole,
-        DeviceTypeRole,
-        HDPathRole
+        IndexRole
     };
 
     class AccountInfo
     {
     public:
-        AccountInfo(const QString& hash, const QString& alias, const QString& deviceID,
-                    const QString& balance, quint64 transCount, const QString& hdPath, const int network);
+        AccountInfo(const QString& hash, const QString& balance, quint64 transCount);
 
         const QVariant value(const int role) const;
         void setBalance(const QString& balance);
@@ -168,25 +162,15 @@ namespace Dbixwall {
         void lock();
         void unlock();
         bool isLocked() const;
-        void setDeviceID(const QString& deviceID);
-        const QString deviceID() const;
-        void setAlias(const QString& name);
-        const QString alias() const;
-        const QString hash() const;
-        quint64 transactionCount() const;
-        const QJsonObject toJson() const;
-        const QString HDPath() const;
+        void alias(const QString& name);
     private:
+        int fIndex;
         QString fHash;
-        QString fAlias;
-        QString fDeviceID;
         QString fBalance; // in dbix
         quint64 fTransCount;
-        QString fHDPath;
+        QString fAlias;
         bool fLocked;
-        int fNetwork;
-
-        const QString getSummary() const;
+		int fNetwork;
     };
 
     typedef QList<AccountInfo> AccountList;

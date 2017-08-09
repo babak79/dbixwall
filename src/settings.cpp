@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file settings.cpp
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2015
  *
  * Settings QML binding implementation

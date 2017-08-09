@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file transactionmodel.cpp
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2015
  *
  * Transaction model implementation
@@ -20,7 +20,6 @@
 
 #include "transactionmodel.h"
 #include "helpers.h"
-#include "dubaicoin/tx.h"
 #include <QDebug>
 #include <QTimer>
 #include <QJsonArray>
@@ -42,11 +41,8 @@ namespace Dbixwall {
         connect(&ipc, &DbixIPC::getGasPriceDone, this, &TransactionModel::getGasPriceDone);
         connect(&ipc, &DbixIPC::estimateGasDone, this, &TransactionModel::estimateGasDone);
         connect(&ipc, &DbixIPC::sendTransactionDone, this, &TransactionModel::sendTransactionDone);
-        connect(&ipc, &DbixIPC::signTransactionDone, this, &TransactionModel::signTransactionDone);
         connect(&ipc, &DbixIPC::newTransaction, this, &TransactionModel::newTransaction);
         connect(&ipc, &DbixIPC::newBlock, this, &TransactionModel::newBlock);
-        connect(&ipc, &DbixIPC::syncingChanged, this, &TransactionModel::syncingChanged);
-
 
         connect(&fNetManager, SIGNAL(finished(QNetworkReply*)), this, SLOT(httpRequestDone(QNetworkReply*)));
         checkVersion(); // TODO: move this off at some point
@@ -78,7 +74,8 @@ namespace Dbixwall {
 
     QHash<int, QByteArray> TransactionModel::roleNames() const {
         QHash<int, QByteArray> roles;
-        roles[THashRole] = "hash";
+        //roles[TransactionRoles::THashRole] = "hash";
+		roles[THashRole] = "hash";
         roles[NonceRole] = "nonce";
         roles[SenderRole] = "sender";
         roles[ReceiverRole] = "receiver";
@@ -134,7 +131,7 @@ namespace Dbixwall {
         fIpc.getGasPrice();
     }
 
-    void TransactionModel::getAccountsDone(const QStringList& list __attribute__((unused))) {
+    void TransactionModel::getAccountsDone(const AccountList& list __attribute__((unused))) {
         refresh();
         loadHistory();
     }
@@ -159,47 +156,27 @@ namespace Dbixwall {
     }
 
     void TransactionModel::getGasPriceDone(const QString& num) {
-        if ( num != fGasEstimate ) {
-            fGasPrice = num;
-            emit gasPriceChanged(num);
-        }
+        fGasPrice = num;
+        emit gasPriceChanged(num);
     }
 
     void TransactionModel::estimateGasDone(const QString& num) {
-        if ( num != fGasEstimate ) {
-            fGasEstimate = num;
-            emit gasEstimateChanged(num);
-        }
+        fGasEstimate = num;
+        emit gasEstimateChanged(num);
     }
 
     void TransactionModel::sendTransaction(const QString& password, const QString& from, const QString& to,
-                                           const QString& value, quint64 nonce, const QString& gas, const QString& gasPrice,
+                                           const QString& value, const QString& gas, const QString& gasPrice,
                                            const QString& data) {
-        Dubaicoin::Tx tx(from, to, value, nonce, gas, gasPrice, data); // nonce not required here, ipc.sendTransaction doesn't fill it in as it's known to gdbix
+        //fIpc.unlockAccount(from, password, 5, 0);
+        fIpc.sendTransaction(from, to, value, password, gas, gasPrice, data);
         fQueuedTransaction.init(from, to, value, gas, gasPrice, data);
-
-        if ( fIpc.isThinClient() ) {
-            fIpc.signTransaction(tx, password);
-        } else {
-            fIpc.sendTransaction(tx, password);
-        }
-    }
-
-    void TransactionModel::onRawTransaction(const Dubaicoin::Tx& tx)
-    {
-        fQueuedTransaction.init(tx.fromStr(), tx.toStr(), tx.valueStr(), tx.gasStr(), tx.gasPriceStr(), tx.dataStr());
-        fIpc.sendRawTransaction(tx);
     }
 
     void TransactionModel::sendTransactionDone(const QString& hash) {
         fQueuedTransaction.setHash(hash);
         addTransaction(fQueuedTransaction);
         DbixLog::logMsg("Transaction sent, hash: " + hash);
-    }
-
-    void TransactionModel::signTransactionDone(const QString &hash)
-    {
-        fIpc.sendRawTransaction(hash);
     }
 
     void TransactionModel::newTransaction(const TransactionInfo &info) {
@@ -254,13 +231,6 @@ namespace Dbixwall {
                 addTransaction(info);
                 emit receivedTransaction(info.value(ReceiverRole).toString());
             }
-        }
-    }
-
-    void TransactionModel::syncingChanged(bool syncing)
-    {
-        if ( !syncing ) {
-            refresh();
         }
     }
 
@@ -334,10 +304,10 @@ namespace Dbixwall {
         qSort(fTransactionList.begin(), fTransactionList.end(), transCompare);
     }
 
-    const QString TransactionModel::estimateTotal(const QString& value, const QString& gas, const QString& gasPrice) const {
+    const QString TransactionModel::estimateTotal(const QString& value, const QString& gas) const {
         BigInt::Rossi valRossi = Helpers::dbixStrToRossi(value);
         BigInt::Rossi valGas = Helpers::decStrToRossi(gas);
-        BigInt::Rossi valGasPrice = Helpers::dbixStrToRossi(gasPrice);
+        BigInt::Rossi valGasPrice = Helpers::dbixStrToRossi(fGasPrice);
 
         const QString wei = QString((valRossi + valGas * valGasPrice).toStrDec().data());
 
@@ -462,7 +432,10 @@ namespace Dbixwall {
 
     void TransactionModel::loadHistory() {
         QSettings settings;
-        if ( fAccountModel.rowCount() == 0 || settings.value("gdbix/testnet", false).toBool() ) {
+        /*if ( fAccountModel.rowCount() == 0 || settings.value("gdbix/testnet", false).toBool() || !settings.value("gdbix/hardfork", true).toBool() ) {
+            return; // don't try with empty request or on test net/ETC
+        }*/
+		if ( fAccountModel.rowCount() == 0 || settings.value("gdbix/testnet", false).toBool() ) {
             return; // don't try with empty request or on test net/ETC
         }
 

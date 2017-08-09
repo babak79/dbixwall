@@ -12,55 +12,45 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file accountmodel.cpp
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2015
  *
  * Account model implementation
  */
 
 #include "accountmodel.h"
+#include "types.h"
 #include "helpers.h"
-//#include "trezor/hdpath.h"
 #include <QDebug>
 #include <QSettings>
 #include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
 
-#define EMPTY_BALANCE "0.000000000000000000"
-#define DEFAULT_DEVICE "gdbix"
-
 namespace Dbixwall {
 
     AccountModel::AccountModel(DbixIPC& ipc, const CurrencyModel& currencyModel) :
-        QAbstractListModel(0),
-        fIpc(ipc), fAccountList(),
-        fSelectedAccountRow(-1), fCurrencyModel(currencyModel), fBusy(false)
+        QAbstractListModel(0), fIpc(ipc), fAccountList(), fSelectedAccountRow(-1), fCurrencyModel(currencyModel), fBusy(false)
     {
         connect(&ipc, &DbixIPC::connectToServerDone, this, &AccountModel::connectToServerDone);
         connect(&ipc, &DbixIPC::getAccountsDone, this, &AccountModel::getAccountsDone);
         connect(&ipc, &DbixIPC::newAccountDone, this, &AccountModel::newAccountDone);
-        connect(&ipc, &DbixIPC::accountBalanceChanged, this, &AccountModel::accountBalanceChanged);
-        connect(&ipc, &DbixIPC::accountSentTransChanged, this, &AccountModel::accountSentTransChanged);
+        connect(&ipc, &DbixIPC::deleteAccountDone, this, &AccountModel::deleteAccountDone);
+        connect(&ipc, &DbixIPC::accountChanged, this, &AccountModel::accountChanged);
         connect(&ipc, &DbixIPC::newBlock, this, &AccountModel::newBlock);
         connect(&ipc, &DbixIPC::syncingChanged, this, &AccountModel::syncingChanged);
 
         connect(&currencyModel, &CurrencyModel::currencyChanged, this, &AccountModel::currencyChanged);
-
-        /*connect(&trezor, &Trezor::TrezorDevice::initialized, this, &AccountModel::onTrezorInitialized);
-        connect(&trezor, &Trezor::TrezorDevice::addressRetrieved, this, &AccountModel::onTrezorAddressRetrieved);*/
     }
 
     QHash<int, QByteArray> AccountModel::roleNames() const {
         QHash<int, QByteArray> roles;
         roles[HashRole] = "hash";
-        roles[DefaultRole] = "default";
         roles[BalanceRole] = "balance";
         roles[TransCountRole] = "transactions";
         roles[SummaryRole] = "summary";
         roles[AliasRole] = "alias";
-        roles[DeviceRole] = "device";
-        roles[DeviceTypeRole] = "deviceType";
+        roles[IndexRole] = "index";
 
         return roles;
     }
@@ -121,7 +111,7 @@ namespace Dbixwall {
 
     void AccountModel::renameAccount(const QString& name, int index) {
         if ( index >= 0 && index < fAccountList.size() ) {
-            fAccountList[index].setAlias(name);
+            fAccountList[index].alias(name);
 
             QVector<int> roles(2);
             roles[0] = AliasRole;
@@ -134,38 +124,13 @@ namespace Dbixwall {
         }
     }
 
-    void AccountModel::removeAccounts()
-    {
-        beginResetModel();
-        foreach ( const AccountInfo& info, fAccountList ) {
-            if ( !info.HDPath().isEmpty() ) {
-                removeAccount(info.hash());
-            }
+    void AccountModel::deleteAccount(const QString& pw, int index) {
+        if ( index >= 0 && index < fAccountList.size() ) {            
+            const QString hash = fAccountList.at(index).value(HashRole).toString();
+            fIpc.deleteAccount(hash, pw, index);
+        } else {
+            DbixLog::logMsg("Invalid account selection for delete", LS_Error);
         }
-        endResetModel();
-
-        emit accountsRemoved();
-    }
-
-    void AccountModel::removeAccount(const QString& address) {
-        QSettings settings;
-        const QString key = address.toLower();
-
-        beginResetModel();
-
-        const QString chain = fIpc.getNetworkPostfix();
-        settings.beginGroup("accounts" + chain);
-        settings.remove(key);
-        settings.endGroup();
-
-        for ( int i = 0; i < fAccountList.size(); i++ ) {
-            if ( fAccountList.at(i).hash().toLower() == key ) {
-                fAccountList.removeAt(i);
-                break;
-            }
-        }
-
-        endResetModel();
     }
 
     const QString AccountModel::getAccountHash(int index) const {
@@ -174,24 +139,6 @@ namespace Dbixwall {
         }
 
         return QString();
-    }
-
-    const QString AccountModel::getAccountHDPath(int index) const
-    {
-        if ( index >= 0 && fAccountList.length() > index ) {
-            return fAccountList.at(index).HDPath();
-        }
-
-        return QString();
-    }
-
-    quint64 AccountModel::getAccountNonce(int index) const
-    {
-        if ( index >= 0 && fAccountList.length() > index ) {
-            return fAccountList.at(index).transactionCount() + fIpc.nonceStart();
-        }
-
-        return 0; // TODO: throw
     }
 
     bool AccountModel::exportAccount(const QUrl& dir, int index) {
@@ -219,76 +166,6 @@ namespace Dbixwall {
         file.close();
 
         return true;
-    }
-
-    void AccountModel::setAsDefault(const QString &address)
-    {
-        beginResetModel();
-        QSettings settings;
-        const QString defaultKey = "default/" + fIpc.getNetworkPostfix(); // settings.value("gdbix/testnet", false).toBool() ? "testnetDefault" : "default";
-        settings.beginGroup("accounts");
-        settings.setValue(defaultKey, address.toLower());
-        settings.endGroup();
-
-        defaultIndexChanged(getDefaultIndex());
-        endResetModel();
-    }
-
-    /*void AccountModel::trezorImport(quint32 offset, quint8 count)
-    {
-        const QString hdPathBase = getHDPathBase();
-        quint32 total = offset + count;
-
-        for ( quint32 i = offset; i < total; i++ ) {
-            const QString fullPath = hdPathBase + "/" + QString::number(i);
-            const Trezor::HDPath hdPath(fullPath);
-            fTrezor.getAddress(hdPath);
-        }
-    }*/
-
-    const QString AccountModel::getSelectedAccountAlias() const
-    {
-        if ( fSelectedAccountRow < 0 || fSelectedAccountRow >= fAccountList.size() ) {
-            return QString();
-        }
-
-        return fAccountList.at(fSelectedAccountRow).alias();
-    }
-
-    quint64 AccountModel::getSelectedAccountSentTrans() const
-    {
-        if ( fSelectedAccountRow < 0 || fSelectedAccountRow >= fAccountList.size() ) {
-            return 0;
-        }
-
-        return fAccountList.at(fSelectedAccountRow).transactionCount();
-    }
-
-    const QString AccountModel::getSelectedAccountDeviceID() const
-    {
-        if ( fSelectedAccountRow < 0 || fSelectedAccountRow >= fAccountList.size() ) {
-            return QString();
-        }
-
-        return fAccountList.at(fSelectedAccountRow).deviceID();
-    }
-
-    const QString AccountModel::getSelectedAccountHDPath() const
-    {
-        if ( fSelectedAccountRow < 0 || fSelectedAccountRow >= fAccountList.size() ) {
-            return 0;
-        }
-
-        return fAccountList.at(fSelectedAccountRow).HDPath();
-    }
-
-    bool AccountModel::getSelectedAccountDefault() const
-    {
-        if ( fSelectedAccountRow < 0 || fSelectedAccountRow >= fAccountList.size() ) {
-            return false;
-        }
-
-        return fSelectedAccountRow == getDefaultIndex();
     }
 
     void AccountModel::exportWallet(const QUrl& fileName) const {
@@ -352,55 +229,29 @@ namespace Dbixwall {
         emit walletImportedEvent();
     }
 
-    /*void AccountModel::onTrezorInitialized(const QString &deviceID)
-    {
-        foreach ( const AccountInfo& addr, fAccountList ) {
-            if ( deviceID == addr.deviceID() ) {
-                return; // we have some addresses don't prompt for them
-            }
-        }
-
-        emit promptForTrezorImport();
-    }*/
-
-    /*void AccountModel::onTrezorAddressRetrieved(const QString &address, const QString& hdPath)
-    {
-        int i1, i2;
-        if ( !containsAccount(address, "unused", i1, i2) ) {
-            beginInsertRows(QModelIndex(), fAccountList.size(), fAccountList.size());
-            fAccountList.append(AccountInfo(address, QString(), fTrezor.getDeviceID(), EMPTY_BALANCE, 0, hdPath, fIpc.network()));
-            endInsertRows();
-            fIpc.refreshAccount(address, fAccountList.size() - 1);
-
-            storeAccountList();
-        } else if ( fAccountList.at(i1).deviceID() != fTrezor.getDeviceID() ) { // this shouldn't happen unless they reimported to another hd device
-            fAccountList[i1].setDeviceID(fTrezor.getDeviceID());
-
-            QVector<int> roles(1);
-            roles[0] = DeviceRole;
-            const QModelIndex& leftIndex = QAbstractListModel::createIndex(i1, i1);
-            const QModelIndex& rightIndex = QAbstractListModel::createIndex(i1, i1);
-            emit dataChanged(leftIndex, rightIndex, roles);
-        }
-    }*/
-
     void AccountModel::connectToServerDone() {
-        loadAccountList();
         fIpc.getAccounts();
     }
 
     void AccountModel::newAccountDone(const QString& hash, int index) {
         if ( !hash.isEmpty() ) {
             beginInsertRows(QModelIndex(), index, index);
-            fAccountList.append(AccountInfo(hash, QString(), DEFAULT_DEVICE, EMPTY_BALANCE, 0, QString(), fIpc.network()));
+            fAccountList.append(AccountInfo(hash, "0.00000000000000000", 0));
             endInsertRows();
             DbixLog::logMsg("New account created");
-
-            if (fAccountList.size() > 0 && !hasDefaultIndex()) {
-                setAsDefault(fAccountList.at(0).hash());
-            }
         } else {
             DbixLog::logMsg("Account create failure");
+        }
+    }
+
+    void AccountModel::deleteAccountDone(bool result, int index) {
+        if ( result ) {
+            beginRemoveRows(QModelIndex(), index, index);
+            fAccountList.removeAt(index);
+            endRemoveRows();
+            DbixLog::logMsg("Account deleted");
+        } else {
+            DbixLog::logMsg("Account delete failure");
         }
     }
 
@@ -420,28 +271,16 @@ namespace Dbixwall {
         }
     }
 
-    void AccountModel::getAccountsDone(const QStringList& list) {
+    void AccountModel::getAccountsDone(const AccountList& list) {
         beginResetModel();
-        foreach ( const QString& addr, list ) {
-            int i1, i2;
-            if ( !containsAccount(addr, "unused", i1, i2) ) {
-                fAccountList.append(AccountInfo(addr, QString(), DEFAULT_DEVICE, EMPTY_BALANCE, 0, QString(), fIpc.network()));
-            }
-        }
+        fAccountList = list;
         endResetModel();
 
-        storeAccountList();
-
         refreshAccounts();
-
-        if (fAccountList.size() > 0 && !hasDefaultIndex()) {
-            setAsDefault(fAccountList.at(0).hash());
-        }
-
-        emit accountsReady();
     }
 
     void AccountModel::refreshAccounts() {
+        //qDebug() << "Refreshing accounts\n";
         int i = 0;
         foreach ( const AccountInfo& info, fAccountList ) {
             const QString& hash = info.value(HashRole).toString();
@@ -451,29 +290,27 @@ namespace Dbixwall {
         emit totalChanged();
     }
 
-    void AccountModel::accountBalanceChanged(int index, const QString& balanceStr) {
-        if ( fAccountList.size() <= index ) {
-            qDebug() << "Invalid index\n";
-            return;
+    void AccountModel::accountChanged(const AccountInfo& info) {
+        int index = 0;
+        const QString infoHash = info.value(HashRole).toString();
+        foreach ( const AccountInfo& a, fAccountList ) {
+            if ( a.value(HashRole).toString() == infoHash ) {
+                fAccountList[index] = info;
+                const QModelIndex& leftIndex = QAbstractListModel::createIndex(index, 0);
+                const QModelIndex& rightIndex = QAbstractListModel::createIndex(index, 4);
+                emit dataChanged(leftIndex, rightIndex);
+                emit totalChanged();
+                return;
+            }
+            index++;
         }
 
-        fAccountList[index].setBalance(balanceStr);
-        const QModelIndex& leftIndex = QAbstractListModel::createIndex(index, 0);
-        const QModelIndex& rightIndex = QAbstractListModel::createIndex(index, 4);
-        emit dataChanged(leftIndex, rightIndex);
+        const int len = fAccountList.length();
+        beginInsertRows(QModelIndex(), len, len);
+        fAccountList.append(info);
+        endInsertRows();
+
         emit totalChanged();
-    }
-
-    void AccountModel::accountSentTransChanged(int index, quint64 count) {
-        if ( fAccountList.size() <= index ) {
-            qDebug() << "Invalid index\n";
-            return;
-        }
-
-        fAccountList[index].setTransactionCount(count);
-        const QModelIndex& leftIndex = QAbstractListModel::createIndex(index, 0);
-        const QModelIndex& rightIndex = QAbstractListModel::createIndex(index, 4);
-        emit dataChanged(leftIndex, rightIndex);
     }
 
     void AccountModel::newBlock(const QJsonObject& block) {
@@ -508,43 +345,6 @@ namespace Dbixwall {
         return fSelectedAccountRow;
     }
 
-    int AccountModel::getDefaultIndex() const
-    {
-        const QSettings settings;
-        const QString defaultKey = "accounts/default/" + fIpc.getNetworkPostfix();
-        const QString address = settings.value(defaultKey).toString();
-
-        if ( address.isEmpty() ) {
-            return 0;
-        }
-
-        for ( int i = 0; i < fAccountList.size(); i++ ) {
-            if ( fAccountList.at(i).hash().toLower() == address ) {
-                return i;
-            }
-        }
-
-        return 0;
-    }
-
-    bool AccountModel::hasDefaultIndex() const
-    {
-        const QSettings settings;
-        const QString defaultKey = "accounts/default/" + fIpc.getNetworkPostfix();
-        const QString address = settings.value(defaultKey).toString();
-        if ( address.isEmpty() ) {
-            return false;
-        }
-
-        foreach ( const AccountInfo info, fAccountList ) {
-            if ( info.hash().toLower() == address ) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     void AccountModel::setSelectedAccountRow(int row) {
         fSelectedAccountRow = row;
         emit accountSelectionChanged(row);
@@ -552,66 +352,6 @@ namespace Dbixwall {
 
     const QString AccountModel::getSelectedAccount() const {
         return getAccountHash(fSelectedAccountRow);
-    }
-
-    void AccountModel::storeAccountList() const
-    {
-        QSettings settings;
-
-        const QString chain = fIpc.getNetworkPostfix();
-        settings.beginGroup("accounts" + chain);
-        int index = 0;
-        foreach ( const AccountInfo& addr, fAccountList ) {
-            const QString key = addr.hash().toLower();
-
-            QJsonObject json = addr.toJson();
-            json["index"] = index++;
-            const QJsonDocument doc(json);
-            const QString serialized = doc.toJson(QJsonDocument::Compact);
-
-            settings.setValue(key, serialized);
-        }
-        settings.endGroup();
-    }
-
-    void AccountModel::loadAccountList()
-    {
-        QSettings settings;
-
-        const QString chain = fIpc.getNetworkPostfix();
-        settings.beginGroup("accounts" + chain);
-        const QStringList keys = settings.allKeys();
-        QList<QJsonObject> parsedList;
-
-        foreach ( const QString& key, keys ) {
-            const QString serialized = settings.value(key, "invalid").toString();
-            parsedList.append(QJsonDocument::fromJson(serialized.toUtf8()).object());
-        }
-        settings.endGroup();
-
-        /*// SORT parsed list based on index
-        std::sort(parsedList.begin(), parsedList.end(), [](const QJsonObject& a, const QJsonObject& b) {
-            return a.value("index").toInt() < b.value("index").toInt();
-        });*/
-
-        foreach ( const QJsonObject json, parsedList ) {
-            const QString hash = json.value("hash").toString();
-            const QString alias = json.value("alias").toString();
-            const QString deviceID = json.value("deviceID").toString();
-            const QString hdPath = json.value("HDPath").toString();
-            fAccountList.append(AccountInfo(hash, alias, deviceID, EMPTY_BALANCE, 0, hdPath, fIpc.network()));
-        }
-    }
-
-    const QString AccountModel::getHDPathBase() const
-    {
-        if ( fIpc.getTestnet() ) {
-            // test net: m/44'/1'/0'/0/<index>
-            return "m/44'/1'/0'/0";
-        }
-
-        // main net: m/44'/60'/0'/0/<index>
-        return "m/44'/60'/0'/0";
     }
 
     const QJsonArray AccountModel::getAccountsJsonArray() const {

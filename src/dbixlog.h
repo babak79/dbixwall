@@ -1,5 +1,5 @@
-#ifndef DBIXLOG_H
-#define DBIXLOG_H
+#ifndef ETHERLOG_H
+#define ETHERLOG_H
 
 #include <QObject>
 #include <QAbstractListModel>
@@ -32,4 +32,4 @@ namespace Dbixwall {
 
 }
 
-#endif // DBIXLOG_H
+#endif // ETHERLOG_H

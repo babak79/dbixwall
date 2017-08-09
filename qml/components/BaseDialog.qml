@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file BaseDialog.qml
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2015
  *
  * Base dialog
@@ -36,6 +36,10 @@ Window {
     height: 1 * dpi
     minimumWidth: 6 * dpi
     minimumHeight: 1 * dpi
+    Component.onCompleted: {
+        setX(Screen.width / 2.0 - width / 2.0)
+        setY(Screen.height / 2.0 - height / 2.0)
+    }
 
     function open() {
         baseDialogID.opened();
@@ -46,11 +50,6 @@ Window {
         visible = false;
     }
 
-    onVisibleChanged: {
-        setX(Screen.width / 2.0 - width / 2.0)
-        setY(Screen.height / 2.0 - height / 2.0)
-    }
-
     Label {
         id: contentLabel
         y: 0.1 * dpi
@@ -58,7 +57,6 @@ Window {
         text: msg
         wrapMode: Text.Wrap
         width: parent.width
-        textFormat: Text.RichText
         onLinkActivated: Qt.openUrlExternally(link)
 
         MouseArea {

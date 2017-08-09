@@ -4,77 +4,8 @@ import QtQuick.Dialogs 1.2
 import QtQuick.Extras 1.4
 
 TabView {
-    property bool hideTrezor: false
-    property bool thinClient: ipc.thinClient
-
     Tab {
         title: qsTr("Basic")
-
-        Row {
-            spacing: 0.5 * dpi
-            anchors.margins: 0.2 * dpi
-            anchors {
-                top: parent.top
-                bottom: parent.bottom
-                left: parent.left
-            }
-
-            // TODO: rename to infodialog
-            ErrorDialog {
-                id: confirmThinClientDialog
-                title: qsTr("Warning")
-                msg: qsTr("Changing node type requires a restart of Dbixwall.")
-            }
-
-            ToggleButton {
-                id: clientModeButton
-                width: 1 * dpi
-                text: qsTr("Thin client")
-                checked: thinClient
-
-                onClicked: {
-                    thinClient = clientModeButton.checked
-                    settings.setValue("gdbix/thinclient", clientModeButton.checked)
-
-                    if ( clientModeButton.checked ) {
-                        settings.setValue("gdbix/testnet", false)
-                    }
-
-                    if ( settings.contains("program/v2firstrun") ) {
-                        confirmThinClientDialog.show()
-                    }
-                }
-            }
-
-            Column {
-                spacing: 0.1 * dpi
-                width: 5 * dpi
-                height: 3 * dpi
-
-
-                Row {
-                    width: parent.width
-
-                    Label {
-                        text: qsTr("Helper currency: ")
-                    }
-
-                    ComboBox {
-                        id: defaultFiatCombo
-                        width: 1 * dpi
-                        model: currencyModel
-                        textRole: "name"
-                        currentIndex: currencyModel.helperIndex
-
-                        onActivated: currencyModel.setHelperIndex(index)
-                    }
-                }
-            }
-        }
-    }
-
-    Tab {
-        title: qsTr("Gdbix")
 
         Column {
             anchors.margins: 0.2 * dpi
@@ -122,6 +53,64 @@ TabView {
             }
 
             Row {
+                width: parent.width
+
+                Label {
+                    text: qsTr("Update interval (s): ")
+                }
+
+                SpinBox {
+                    id: intervalSpinBox
+                    width: 1 * dpi
+                    minimumValue: 5
+                    maximumValue: 60
+
+                    value: settings.value("ipc/interval", 10)
+                    onValueChanged: {
+                        settings.setValue("ipc/interval", intervalSpinBox.value)
+                        ipc.setInterval(intervalSpinBox.value * 1000)
+                    }
+                }
+            }
+
+            ErrorDialog {
+                id: hfConfirmDialog
+                title: qsTr("Warning")
+                msg: qsTr("Changing hard fork decision requires a restart of Dbixwall (and gdbix if running externally).")
+            }
+
+            Row {
+                width: parent.width
+
+                Label {
+                    text: qsTr("Support DAO hard fork: ")
+                }
+
+                ToggleButton {
+                    id: hfButton
+
+                    checked: settings.valueBool("gdbix/hardfork", true)
+                    text: checked ? qsTr("support") : qsTr("oppose")
+                    onClicked: {
+                        settings.setValue("gdbix/hardfork", checked)
+                        if ( settings.contains("program/firstrun") ) {
+                            hfConfirmDialog.show()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Tab {
+        title: qsTr("Advanced")
+
+        Column {
+            anchors.margins: 0.2 * dpi
+            anchors.fill: parent
+            spacing: 0.1 * dpi
+
+            Row {
                 id: rowGdbixPath
                 width: parent.width
 
@@ -163,9 +152,30 @@ TabView {
 
             // TODO: rename to infodialog
             ErrorDialog {
-                id: confirmDialogTestnet
+                id: confirmDialog
                 title: qsTr("Warning")
                 msg: qsTr("Changing the chain requires a restart of Dbixwall (and gdbix if running externally).")
+            }
+
+            Row {
+                id: rowGdbixTestnet
+                width: parent.width
+
+                Label {
+                    id: gdbixTestnetLabel
+                    text: "Testnet: "
+                }
+
+                CheckBox {
+                    id: gdbixTestnetCheck
+                    checked: settings.valueBool("gdbix/testnet", false)
+                    onClicked: {
+                        settings.setValue("gdbix/testnet", gdbixTestnetCheck.checked)
+                        if ( settings.contains("program/firstrun") ) {
+                            confirmDialog.show()
+                        }
+                    }
+                }
             }
 
             Row {
@@ -180,7 +190,7 @@ TabView {
                 TextField {
                     id: gdbixArgsField
                     width: parent.width - gdbixArgsLabel.width
-                    text: settings.value("gdbix/args", "--syncmode=fast --cache 512")
+                    text: settings.value("gdbix/args", "--fast --cache 512")
                     onTextChanged: {
                         settings.setValue("gdbix/args", gdbixArgsField.text)
                     }
@@ -188,61 +198,7 @@ TabView {
             }
 
             Row {
-                enabled: !thinClient
-                id: rowGdbixTestnet
-                width: parent.width
-
-                Label {
-                    id: gdbixTestnetLabel
-                    text: "Testnet (testnet): "
-                }
-
-                CheckBox {
-                    id: gdbixTestnetCheck
-                    checked: settings.valueBool("gdbix/testnet", false)
-                    onClicked: {
-                        settings.setValue("gdbix/testnet", gdbixTestnetCheck.checked)
-                        if ( settings.contains("program/v2firstrun") ) {
-                            confirmDialogTestnet.show()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Tab {
-        title: qsTr("Advanced")
-        enabled: !ipc.thinClient
-
-        Column {
-            anchors.margins: 0.2 * dpi
-            anchors.fill: parent
-            spacing: 0.1 * dpi
-
-
-            Row {
-                enabled: !thinClient
-                width: parent.width
-
-                Label {
-                    text: qsTr("Update interval (s): ")
-                }
-
-                SpinBox {
-                    id: intervalSpinBox
-                    width: 1 * dpi
-                    minimumValue: 5
-                    maximumValue: 60
-
-                    value: settings.value("ipc/interval", 10)
-                    onValueChanged: ipc.setInterval(intervalSpinBox.value * 1000)
-                }
-            }
-
-            Row {
                 id: rowLogBlocks
-                enabled: !thinClient
                 width: parent.width
 
                 Label {
@@ -262,46 +218,8 @@ TabView {
                     }
                 }
             }
+
         }
     }
-
-
-    Tab {
-        enabled: !hideTrezor
-        title: "TREZOR"
-
-        Column {
-            anchors.margins: 0.2 * dpi
-            anchors.fill: parent
-            spacing: 0.1 * dpi
-
-            /*Button {
-                enabled: trezor.initialized
-                text: qsTr("Import accounts")
-                onClicked: trezorImportDialog.open('<a href="http://www.dbixwall.com/faq/#importaccount">' + qsTr("Import addresses from TREZOR?") + '</a>')
-            }*/
-
-            Row {
-                spacing: 0.05 * dpi
-
-                ConfirmDialog {
-                    id: accountRemoveDialog
-                    title: qsTr("Confirm removal of all TREZOR accounts")
-                    msg: qsTr("All your TREZOR accounts will be removed from Dbixwall") + ' <a href="http://www.dbixwall.com/faq/#removeaccount">?</a>'
-                    onYes: accountModel.removeAccounts()
-                }
-
-                Label {
-                    text: qsTr("Clear TREZOR accounts")
-                }
-
-                Button {
-                    text: qsTr("Clear")
-                    onClicked: accountRemoveDialog.open()
-                }
-            }
-        }
-    }
-
 
 }

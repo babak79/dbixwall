@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file ConfirmDialog.qml
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2015
  *
  * Confirm dialog
@@ -30,7 +30,6 @@ BaseDialog {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.margins: 0.1 * dpi
-        spacing: 0.1 * dpi
 
         Button {
             text: yesText

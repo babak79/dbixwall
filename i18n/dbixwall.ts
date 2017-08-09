@@ -228,7 +228,7 @@
 <context>
     <name>main</name>
     <message>
-        <source>Dbix Dubaicoin Wallet</source>
+        <source>Dbixdiene Dubaicoin Wallet</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

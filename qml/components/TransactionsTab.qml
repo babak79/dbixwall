@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file TransactionsTab.qml
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2015
  *
  * Transactions tab
@@ -120,6 +120,14 @@ Tab {
                     text: qsTr("Copy Receiver")
                     onTriggered: {
                         clipboard.setText(transactionModel.getReceiver(transactionView.currentRow))
+                    }
+                }
+
+                MenuItem {
+                    text: qsTr("Resend")
+                    onTriggered: {
+                        toField.text = transactionModel.getReceiver(transactionView.currentRow)
+                        valueField.text = transactionModel.getValue(transactionView.currentRow)
                     }
                 }
             }

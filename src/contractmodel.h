@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file contractmodel.cpp
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2016
  *
  * Contract model header
@@ -54,7 +54,6 @@ namespace Dbixwall {
         Q_INVOKABLE const QString contractDeployed(const QJsonObject& receipt);
         Q_INVOKABLE bool deleteContract(int index);
         Q_INVOKABLE const QString getName(int index) const;
-        Q_INVOKABLE int getIndex(const QString name) const;
         Q_INVOKABLE const QString getAddress(int index) const;
         Q_INVOKABLE const QString getABI(int index) const;
         Q_INVOKABLE const QStringList getFunctions(int index) const;

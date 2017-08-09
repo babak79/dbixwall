@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file dbixipc.cpp
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2015
  *
  * Dubaicoin IPC client implementation
@@ -73,9 +73,8 @@ namespace Dbixwall {
 
 // *************************** DbixIPC **************************** //
 
-    //DbixIPC::DbixIPC(GdbixLog& gdbixLog) :
-	DbixIPC::DbixIPC(const QString& ipcPath, GdbixLog& gdbixLog) :
-        fPath(), fBlockFilterID(), fClosingApp(false), fPeerCount(0), fActiveRequest(None),
+    DbixIPC::DbixIPC(const QString& ipcPath, GdbixLog& gdbixLog) :
+        fPath(ipcPath), fBlockFilterID(), fClosingApp(false), fPeerCount(0), fActiveRequest(None),
         fGdbix(), fStarting(0), fGdbixLog(gdbixLog),
         fSyncing(false), fCurrentBlock(0), fHighestBlock(0), fStartingBlock(0),
         fConnectAttempts(0), fKillTime(), fExternal(false), fEventFilterID()
@@ -88,6 +87,7 @@ namespace Dbixwall {
 
         const QSettings settings;
 
+        //fTimer.setInterval(settings.value("ipc/interval", 10).toInt() * 1000);
         connect(&fTimer, &QTimer::timeout, this, &DbixIPC::onTimer);
     }
 
@@ -95,9 +95,7 @@ namespace Dbixwall {
         fGdbix.kill();
     }
 
-    void DbixIPC::init() {
-        QStringList args = buildGdbixArgs(); // has to run first
-
+    void DbixIPC::init() {        
         fConnectAttempts = 0;
         if ( fStarting <= 0 ) { // try to connect without starting gdbix
             DbixLog::logMsg("Dbixwall starting", LS_Info);
@@ -106,9 +104,22 @@ namespace Dbixwall {
             return connectToServer();
         }
 
-        QSettings settings;
+        const QSettings settings;
 
         const QString progStr = settings.value("gdbix/path", DefaultGdbixPath()).toString();
+        const QString argStr = settings.value("gdbix/args", DefaultGdbixArgs).toString();
+        const QString ddStr = settings.value("gdbix/datadir", DefaultDataDir).toString();
+        QStringList args = (argStr + " --datadir " + ddStr).split(' ', QString::SkipEmptyParts);
+        bool testnet = settings.value("gdbix/testnet", false).toBool();
+        if ( testnet ) {
+            args.append("--testnet");
+        }
+        /*bool hardfork = settings.value("gdbix/hardfork", true).toBool();
+        if ( hardfork ) {
+            args.append("--support-dao-fork");
+        } else {
+            args.append("--oppose-dao-fork");
+        }*/
 
         QFileInfo info(progStr);
         if ( !info.exists() || !info.isExecutable() ) {
@@ -151,7 +162,7 @@ namespace Dbixwall {
         emit busyChanged(getBusy());
         if ( fSocket.state() != QLocalSocket::UnconnectedState ) {
             setError("Already connected");
-            return bail(true);
+            return bail();
         }
 
         fSocket.connectToServer(fPath);
@@ -170,9 +181,8 @@ namespace Dbixwall {
         done();
 
         getClientVersion();
-        getBlockNumber();
+        getBlockNumber(); // initial
         newBlockFilter();
-        getSyncing();
         getNetVersion();
 
         if ( fStarting == 1 ) {
@@ -188,7 +198,6 @@ namespace Dbixwall {
         if ( fSocket.state() != QLocalSocket::ConnectedState ) {
             fSocket.abort();
             fStarting = -1;
-            emit startingChanged(fStarting);
             setError("Unable to establish IPC connection to Gdbix. Fix path to Gdbix and try again.");
             bail();
         }
@@ -210,6 +219,11 @@ namespace Dbixwall {
         return fClosingApp;
     }
 
+    /*bool DbixIPC::getHardForkReady() const {
+        const int vn = parseVersionNum();
+        return ( vn >= 104010 );
+    }*/
+
     const QString& DbixIPC::getError() const {
         return fError;
     }
@@ -219,7 +233,11 @@ namespace Dbixwall {
     }
 
 
-    void DbixIPC::setInterval(int interval) {
+    /*void DbixIPC::setInterval(int interval) {
+        fTimer.setInterval(interval);
+    }*/
+	
+	void DbixIPC::setInterval(int interval) {
         QSettings settings;
         settings.setValue("ipc/interval", (int) (interval / 1000));
         fTimer.setInterval(interval);
@@ -228,10 +246,22 @@ namespace Dbixwall {
     bool DbixIPC::getTestnet() const {
         return fNetVersion == 4;
     }
-
-    const QString DbixIPC::getNetworkPostfix() const {
+	
+	const QString DbixIPC::getNetworkPostfix() const {
         return Helpers::networkPostfix(fNetVersion);
     }
+
+    /*const QString DbixIPC::getNetworkPostfix() const {
+        QSettings settings;
+        QString postfix; //= settings.value("gdbix/hardfork", true).toBool() ? "/eth" : "/etc";
+        if ( getTestnet() ) {
+            postfix += "/morden";
+        } else {
+            postfix += "/homestead";
+        }
+
+        return postfix;
+    }*/
 
     bool DbixIPC::killGdbix() {
         if ( fGdbix.state() == QProcess::NotRunning ) {
@@ -322,6 +352,7 @@ namespace Dbixwall {
     }
 
     void DbixIPC::getAccounts() {
+        fAccountList.clear();
         if ( !queueRequest(RequestIPC(GetAccountRefs, "personal_listAccounts", QJsonArray())) ) {
             return bail();
         }
@@ -334,13 +365,12 @@ namespace Dbixwall {
         }
 
         QJsonArray refs = jv.toArray();
-        QStringList accounts;
         foreach( QJsonValue r, refs ) {
             const QString hash = r.toString("INVALID");
-            accounts.append(hash);
+            fAccountList.append(AccountInfo(hash, QString(), 0));
         }
 
-        emit getAccountsDone(accounts);
+        emit getAccountsDone(fAccountList);
         done();
     }
 
@@ -385,8 +415,9 @@ namespace Dbixwall {
 
         const QString decStr = Helpers::toDecStrDbix(jv);
         const int index = fActiveRequest.getIndex();
+        fAccountList[index].setBalance(decStr);
 
-        emit accountBalanceChanged(index, decStr);
+        emit accountChanged(fAccountList.at(index));
         done();
     }
 
@@ -400,8 +431,9 @@ namespace Dbixwall {
         const BigInt::Vin bv(hexStr, 16);
         quint64 count = bv.toUlong();
         const int index = fActiveRequest.getIndex();
+        fAccountList[index].setTransactionCount(count);
 
-        emit accountSentTransChanged(index, count);
+        emit accountChanged(fAccountList.at(index));
         done();
     }
 
@@ -421,6 +453,26 @@ namespace Dbixwall {
 
         const QString result = jv.toString();
         emit newAccountDone(result, fActiveRequest.getIndex());
+        done();
+    }
+
+    void DbixIPC::deleteAccount(const QString& hash, const QString& password, int index) {
+        QJsonArray params;
+        params.append(hash);
+        params.append(password);        
+        if ( !queueRequest(RequestIPC(DeleteAccount, "personal_deleteAccount", params, index)) ) {
+            return bail();
+        }
+    }
+
+    void DbixIPC::handleDeleteAccount() {
+        QJsonValue jv;
+        if ( !readReply(jv) ) {
+            return bail();
+        }
+
+        const bool result = jv.toBool(false);
+        emit deleteAccountDone(result, fActiveRequest.getIndex());
         done();
     }
 
@@ -445,22 +497,11 @@ namespace Dbixwall {
         return fBlockNumber;
     }
 
-    int DbixIPC::network() const
+	int DbixIPC::network() const
     {
         return fNetVersion;
     }
-
-    quint64 DbixIPC::nonceStart() const
-    {
-        switch ( fNetVersion ) {
-            case 2: return 0x0100000;
-            case 3: return 0x0100000;
-            case 4: return 0;
-        }
-
-        return 0;
-    }
-
+	
     void DbixIPC::getPeerCount() {
         if ( !queueRequest(RequestIPC(NonVisual, GetPeerCount, "net_peerCount")) ) {
             return bail();
@@ -476,79 +517,33 @@ namespace Dbixwall {
         done();
     }
 
-    void DbixIPC::sendTransaction(const Dubaicoin::Tx& tx, const QString& password) {
+    void DbixIPC::sendTransaction(const QString& from, const QString& to, const QString& valStr, const QString& password,
+                                   const QString& gas, const QString& gasPrice, const QString& data) {
         QJsonArray params;
+        const QString valHex = Helpers::toHexWeiStr(valStr);
         QJsonObject p;
-        p["from"] = tx.fromStr();
-        p["value"] = tx.valueHex();
-        if ( !tx.isContractDeploy() ) {
-            p["to"] = tx.toStr();
+        p["from"] = from;
+        p["value"] = valHex;
+        if ( !to.isEmpty() ) {
+            p["to"] = to;
         }
-        if ( tx.hasDefinedGas() ) {
-            p["gas"] = tx.gasHex();
+        if ( !gas.isEmpty() ) {
+            const QString gasHex = Helpers::decStrToHexStr(gas);
+            p["gas"] = gasHex;
         }
-        if ( tx.hasDefinedGasPrice() ) {
-            p["gasPrice"] = tx.gasPriceHex();
-            DbixLog::logMsg(QString("Trans gasPrice: ") + tx.gasPriceStr() + QString(" HexValue: ") + tx.gasPriceHex());
+        if ( !gasPrice.isEmpty() ) {
+            const QString gasPriceHex = Helpers::toHexWeiStr(gasPrice);
+            p["gasPrice"] = gasPriceHex;
+            DbixLog::logMsg(QString("Trans gasPrice: ") + gasPrice + QString(" HexValue: ") + gasPriceHex);
         }
-        if ( tx.hasData() ) {
-            p["data"] = tx.dataHex();
+        if ( !data.isEmpty() ) {
+            p["data"] = data;
         }
 
         params.append(p);
         params.append(password);
 
         if ( !queueRequest(RequestIPC(SendTransaction, "personal_signAndSendTransaction", params)) ) {
-            return bail(true); // softbail
-        }
-    }
-
-    void DbixIPC::signTransaction(const Dubaicoin::Tx &tx, const QString &password)
-    {
-        qDebug() << "called sendTX with manual signing\n";
-        unlockAccount(tx.fromStr(), password, 5, 0);
-        signTransaction(tx);
-    }
-
-    void DbixIPC::signTransaction(const Dubaicoin::Tx &tx)
-    {
-        QJsonArray params;
-        QJsonObject p;
-        p["from"] = tx.fromStr();
-        p["value"] = tx.valueHex();
-        if ( !tx.isContractDeploy() ) {
-            p["to"] = tx.toStr();
-        }
-        if ( tx.hasDefinedGas() ) {
-            p["gas"] = tx.gasHex();
-        }
-        if ( tx.hasDefinedGasPrice() ) {
-            p["gasPrice"] = tx.gasPriceHex();
-            DbixLog::logMsg(QString("Trans gasPrice: ") + tx.gasPriceStr() + QString(" HexValue: ") + tx.gasPriceHex());
-        }
-        if ( tx.hasData() ) {
-            p["data"] = tx.dataHex();
-        }
-        p["nonce"] = tx.nonceHex();
-
-        params.append(p);
-
-        if ( !queueRequest(RequestIPC(SignTransaction, "eth_signTransaction", params)) ) {
-            return bail(true); // softbail
-        }
-    }
-
-    void DbixIPC::sendRawTransaction(const Dubaicoin::Tx &tx)
-    {
-        sendRawTransaction(Helpers::hexPrefix(tx.encodeRLP(true)));
-    }
-
-    void DbixIPC::sendRawTransaction(const QString &rlp)
-    {
-        QJsonArray params;
-        params.append(rlp);
-
-        if ( !queueRequest(RequestIPC(SendRawTransaction, "eth_sendRawTransaction", params)) ) {
             return bail(true); // softbail
         }
     }
@@ -564,24 +559,44 @@ namespace Dbixwall {
         done();
     }
 
-    void DbixIPC::handleSignTransaction()
-    {
-        QJsonValue jv;
-        if ( !readReply(jv) ) {
-            return bail(true); // softbail
-        }
-
-        const QString hash = jv.toObject().value("raw").toString();
-        emit signTransactionDone(hash);
-        done();
-    }
-
     int DbixIPC::getConnectionState() const {
         if ( fSocket.state() == QLocalSocket::ConnectedState ) {
             return 1; // TODO: add higher states per peer count!
         }
 
         return 0;
+    }
+
+    void DbixIPC::unlockAccount(const QString& hash, const QString& password, int duration, int index) {
+        QJsonArray params;
+        params.append(hash);
+        params.append(password);
+
+        BigInt::Vin vinVal(duration);
+        QString strHex = QString(vinVal.toStr0xHex().data());
+        params.append(strHex);
+
+        if ( !queueRequest(RequestIPC(UnlockAccount, "personal_unlockAccount", params, index)) ) {
+            return bail();
+        }
+    }
+
+    void DbixIPC::handleUnlockAccount() {
+        QJsonValue jv;
+        if ( !readReply(jv) ) {
+            // special case, we def. need to remove all subrequests, but not stop timer
+            fRequestQueue.clear();
+            return bail(true);
+        }
+
+        const bool result = jv.toBool(false);
+
+        if ( !result ) {
+            setError("Unlock account failure");
+            emit error();
+        }
+        emit unlockAccountDone(result, fActiveRequest.getIndex());
+        done();
     }
 
     void DbixIPC::getGasPrice() {
@@ -605,8 +620,8 @@ namespace Dbixwall {
     quint64 DbixIPC::peerCount() const {
         return fPeerCount;
     }
-
-    void DbixIPC::ipcReady()
+	
+	void DbixIPC::ipcReady()
     {
         const QSettings settings;
         setInterval(settings.value("ipc/interval", 10).toInt() * 1000); // re-set here, used for inheritance purposes
@@ -615,49 +630,6 @@ namespace Dbixwall {
         emit startingChanged(fStarting);
         emit connectToServerDone();
         emit connectionStateChanged();
-    }
-
-    bool DbixIPC::endpointWritable()
-    {
-        return fSocket.isWritable();
-    }
-
-    qint64 DbixIPC::endpointWrite(const QByteArray &data)
-    {
-        return fSocket.write(data);
-    }
-
-    const QByteArray DbixIPC::endpointRead()
-    {
-        return fSocket.readAll();
-    }
-
-    const QStringList DbixIPC::buildGdbixArgs()
-    {
-        QSettings settings;
-        QString argStr = settings.value("gdbix/args", DefaultGdbixArgs).toString();
-        const QString ddStr = settings.value("gdbix/datadir", DefaultDataDir).toString();
-
-        // check deprecated options and replace them
-        if ( argStr.contains("--light") || argStr.contains("--fast") ) {
-            argStr = argStr.replace("--light", "--syncmode=light");
-            argStr = argStr.replace("--fast", "--syncmode=fast");
-            settings.setValue("gdbix/args", argStr);
-            qDebug() << "replaced args\n";
-        }
-
-        QStringList args;
-        args.append("--nousb");
-        bool testnet = settings.value("gdbix/testnet", false).toBool();
-        fPath = DefaultIPCPath(ddStr, testnet);
-        if ( testnet ) { // gdbix 1.5.0+ only
-            args = (argStr + " --datadir " + ddStr + "/testnet").split(' ', QString::SkipEmptyParts);
-            args.append("--testnet");
-        } else {
-            args = (argStr + " --datadir " + ddStr).split(' ', QString::SkipEmptyParts);
-        }
-
-        return args;
     }
 
     void DbixIPC::estimateGas(const QString& from, const QString& to, const QString& valStr,
@@ -717,7 +689,7 @@ namespace Dbixwall {
         QJsonObject o;
         o["address"] = QJsonArray::fromStringList(addresses);
         if ( topics.length() > 0 && topics.at(0).length() > 0 ) {
-            o["topics"] = parseTopics(topics);
+            o["topics"] = QJsonArray::fromStringList(topics);
         }
         params.append(o);
 
@@ -783,36 +755,8 @@ namespace Dbixwall {
         return 0;
     }
 
-    const QJsonArray DbixIPC::parseTopics(const QStringList &topics)
-    {
-        QJsonArray result;
-        foreach (const QString& topic, topics) {
-            if ( topic == "null" ) {
-                result.append(QJsonValue());
-            } else {
-                result.append(topic);
-            }
-        }
-
-        return result;
-    }
-
     void DbixIPC::getSyncing() {
         if ( !queueRequest(RequestIPC(NonVisual, GetSyncing, "eth_syncing")) ) {
-            return bail();
-        }
-    }
-
-    void DbixIPC::unlockAccount(const QString &hash, const QString &password, int duration, int index)
-    {
-        Q_UNUSED(duration); // lets just default here, hopefully gdbix does what parity now
-        QJsonArray params;
-        params.append(hash);
-        params.append(password);
-
-        // params.append(Helpers::toHexStr(duration));
-
-        if ( !queueRequest(RequestIPC(UnlockAccount, "personal_unlockAccount", params, index)) ) {
             return bail();
         }
     }
@@ -874,7 +818,7 @@ namespace Dbixwall {
         o["fromBlock"] = fromBlock == 0 ? "latest" : Helpers::toHexStr(fromBlock);
         o["address"] = QJsonArray::fromStringList(addresses);
         if ( topics.length() > 0 && topics.at(0).length() > 0 ) {
-            o["topics"] = parseTopics(topics);
+            o["topics"] = QJsonArray::fromStringList(topics);
         }
         params.append(o);
 
@@ -882,11 +826,6 @@ namespace Dbixwall {
         if ( !queueRequest(RequestIPC(GetLogs, "eth_getLogs", params)) ) {
             return bail();
         }
-    }
-
-    bool DbixIPC::isThinClient() const
-    {
-        return false;
     }
 
     void DbixIPC::handleUninstallFilter() {
@@ -1012,8 +951,8 @@ namespace Dbixwall {
             emit error();
         }
 
-        if ( vn > 0 && vn < 105000 ) {
-            setError("Gdbix version older than 1.5.0 is no longer supported. Please upgrade gdbix to 1.5.0+.");
+        if ( vn > 0 && vn < 105001 ) {
+            setError("Gdbix version older than 1.5.1 is no longer supported. Please upgrade gdbix to 1.5.1+.");
             emit error();
         }
 
@@ -1038,7 +977,15 @@ namespace Dbixwall {
         emit netVersionChanged(fNetVersion);
         done();
 
-        ipcReady();
+        /*fTimer.start(); // should happen after filter creation, might need to move into last filter response handler
+        // if we connected to external gdbix, put that info in gdbix log
+
+        emit startingChanged(fStarting);
+        emit connectToServerDone();
+        emit connectionStateChanged();
+        emit hardForkReadyChanged(getHardForkReady());*/
+		
+		ipcReady();
     }
 
     void DbixIPC::handleGetSyncing() {
@@ -1063,7 +1010,6 @@ namespace Dbixwall {
         fCurrentBlock = Helpers::toQUInt64(syncing.value("currentBlock"));
         fHighestBlock = Helpers::toQUInt64(syncing.value("highestBlock"));
         fStartingBlock = Helpers::toQUInt64(syncing.value("startingBlock"));
-
         if ( !fSyncing ) {
             if ( !fBlockFilterID.isEmpty() ) {
                 uninstallFilter(fBlockFilterID);
@@ -1073,27 +1019,6 @@ namespace Dbixwall {
         }
 
         emit syncingChanged(fSyncing);
-        done();
-    }
-
-    void DbixIPC::handleUnlockAccount()
-    {
-        QJsonValue jv;
-        if ( !readReply(jv) ) {
-            // special case, we def. need to remove all subrequests, but not stop timer
-            fRequestQueue.clear();
-            return bail(true);
-        }
-
-        const bool result = jv.toBool(false);
-        qDebug() << "unlock account: " << result << "\n";
-
-        if ( !result ) {
-            setError("Unlock account failure");
-            emit error();
-        }
-
-        emit unlockAccountDone(result, fActiveRequest.getIndex());
         done();
     }
 
@@ -1123,7 +1048,8 @@ namespace Dbixwall {
     void DbixIPC::done() {
         fActiveRequest = RequestIPC(None);
         if ( !fRequestQueue.isEmpty() ) {
-            const RequestIPC request = fRequestQueue.dequeue();
+            const RequestIPC request = fRequestQueue.first();
+            fRequestQueue.removeFirst();
             writeRequest(request);
         } else {
             emit busyChanged(getBusy());
@@ -1145,7 +1071,7 @@ namespace Dbixwall {
         if ( fActiveRequest.burden() == None ) {
             return writeRequest(request);
         } else {
-            fRequestQueue.enqueue(request);
+            fRequestQueue.append(request);
             return true;
         }
     }
@@ -1157,9 +1083,9 @@ namespace Dbixwall {
         }
 
         QJsonDocument doc(methodToJSON(fActiveRequest));
-        const QString msg(doc.toJson(QJsonDocument::Compact));
+        const QString msg(doc.toJson());
 
-        if ( !endpointWritable() ) {
+        if ( !fSocket.isWritable() ) {
             setError("Socket not writeable");
             fCode = 0;
             return false;
@@ -1167,7 +1093,7 @@ namespace Dbixwall {
 
         const QByteArray sendBuf = msg.toUtf8();
         DbixLog::logMsg("Sent: " + msg, LS_Debug);
-        const int sent = endpointWrite(sendBuf);
+        const int sent = fSocket.write(sendBuf);
 
         if ( sent <= 0 ) {
             setError("Error on socket write: " + fSocket.errorString());
@@ -1179,7 +1105,7 @@ namespace Dbixwall {
     }
 
     bool DbixIPC::readData() {
-        fReadBuffer += QString(endpointRead()).trimmed();
+        fReadBuffer += QString(fSocket.readAll()).trimmed();
 
         if ( fReadBuffer.at(0) == '{' && fReadBuffer.at(fReadBuffer.length() - 1) == '}' && fReadBuffer.count('{') == fReadBuffer.count('}') ) {
             DbixLog::logMsg("Received: " + fReadBuffer, LS_Debug);
@@ -1221,7 +1147,7 @@ namespace Dbixwall {
         result = obj["result"];
 
         // get filter changes bugged, returns null on result array, see https://github.com/ethereum/go-ethereum/issues/2746
-        if ( result.isNull() && (fActiveRequest.getType() == GetFilterChanges || fActiveRequest.getType() == GetAccountRefs) ) {
+        if ( result.isNull() && fActiveRequest.getType() == GetFilterChanges ) {
             result = QJsonValue(QJsonArray());
         }
 
@@ -1285,15 +1211,12 @@ namespace Dbixwall {
         }
 
         switch ( fActiveRequest.getType() ) {
-        case NoRequest: {
-            break;
-        }
         case NewAccount: {
                 handleNewAccount();
                 break;
             }
-        case UnlockAccount: {
-                handleUnlockAccount();
+        case DeleteAccount: {
+                handleDeleteAccount();
                 break;
             }
         case GetBlockNumber: {
@@ -1320,12 +1243,8 @@ namespace Dbixwall {
                 handleSendTransaction();
                 break;
             }
-        case SignTransaction: {
-                handleSignTransaction();
-                break;
-            }
-        case SendRawTransaction: {
-                handleSendTransaction();
+        case UnlockAccount: {
+                handleUnlockAccount();
                 break;
             }
         case GetGasPrice: {
@@ -1380,6 +1299,7 @@ namespace Dbixwall {
                 handleGetTransactionReceipt();
                 break;
             }
+        default: qDebug() << "Unknown reply: " << fActiveRequest.getType() << "\n"; break;
         }
     }
 

@@ -155,21 +155,27 @@ namespace Dbixwall {
     }
 
     void FilterModel::loadLogs() const {
+        QStringList addresses;
+        QStringList topics;
         const QSettings settings;
-        quint64 day = settings.value("gdbix/logsize", 7200).toLongLong();
-        quint64 fromBlock = fIpc.blockNumber() > day ? fIpc.blockNumber() - day : 1;
 
-        emit beforeLoadLogs();
         foreach ( const FilterInfo info, fList ) {
             if ( !info.value(FilterActiveRole).toBool() ) {
                 continue;
             }
 
-            QStringList addresses;
             addresses.append(info.value(FilterAddressRole).toString());
             const QStringList infoTopics = info.value(FilterTopicsRole).toStringList();
-            fIpc.loadLogs(addresses, infoTopics, fromBlock);
+            if ( infoTopics.length() > 0 ) {
+                topics += infoTopics;
+            }
         }
+
+        quint64 day = settings.value("gdbix/logsize", 7200).toLongLong();
+        quint64 fromBlock = fIpc.blockNumber() > day ? fIpc.blockNumber() - day : 1;
+
+        emit beforeLoadLogs();
+        fIpc.loadLogs(addresses, topics, fromBlock);
     }
 
     void FilterModel::reload() {

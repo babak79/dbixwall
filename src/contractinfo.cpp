@@ -283,12 +283,6 @@ namespace Dbixwall {
         }
 
         if ( fBaseType == "bytes" ) {
-            QString sVal = val.toString();
-            if ( sVal.startsWith("0x") && sVal.size() > 2 ) { // hex value
-                sVal.remove(0, 2);
-                return encode(QByteArray::fromHex(sVal.toUtf8()));
-            }
-            // otherwise consider binary (strings)
             return encode(val.toByteArray());
         }
 
@@ -312,7 +306,7 @@ namespace Dbixwall {
             throw QString("Invalid argument encode value for " + fBaseType + " expected bytes");
         }
 
-        return encodeBytes(bytes, fM);
+        return encodeBytes(bytes);
     }
 
     const QString ContractArg::encode(int number) const {
@@ -390,7 +384,7 @@ namespace Dbixwall {
             throw QString("Byte array too large for static bytes" + QString::number(fixedSize));
         }
 
-        const QString sizePrefix = (fixedSize <= 0 ? encodeInt(bytes.size()) : ""); // static has no size prefix
+        const QString sizePrefix = fixedSize == 0 ? encodeInt(bytes.size()) : ""; // static has no size prefix
         int coef = bytes.size() / 64;
         int requestedSize = 32 * (coef + 1);
 
@@ -737,7 +731,10 @@ namespace Dbixwall {
 
     const QVariant ContractInfo::value(const int role) const {
         switch ( role ) {
-            case ContractNameRole: return QVariant(fName);
+            //case ContractRoles::ContractNameRole: return QVariant(fName);
+            //case ContractRoles::AddressRole: return QVariant(fAddress);
+            //case ContractRoles::ABIRole: return QVariant(QString(QJsonDocument(fABI).toJson()));
+			case ContractNameRole: return QVariant(fName);
             case AddressRole: return QVariant(fAddress);
             case ABIRole: return QVariant(QString(QJsonDocument(fABI).toJson()));
         }

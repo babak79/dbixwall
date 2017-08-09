@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file AccountsTab.qml
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2015
  *
  * Log tab
@@ -41,7 +41,7 @@ Tab {
                 id: logLevelCombo
                 currentIndex: log.logLevel
 
-                onActivated: log.logLevel = index
+                onCurrentIndexChanged: log.logLevel = currentIndex
 
                 model: ListModel {
                     id: llItems

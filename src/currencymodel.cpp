@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file currencymodel.h
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2016
  *
  * Currency model body
@@ -20,7 +20,6 @@
 
 #include "currencymodel.h"
 #include <QDebug>
-#include <QSettings>
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QJsonObject>
@@ -53,18 +52,6 @@ namespace Dbixwall {
         return QVariant(fCurrencies.at(index.row()).value(role));
     }
 
-    QVariant CurrencyModel::recalculateToHelper(const QVariant &dbix) const
-    {
-        int index = getHelperIndex();
-
-        if ( index == 0 ) {
-            return dbix; // no change
-        }
-
-        double val = fCurrencies.at(index).recalculate(dbix.toDouble());
-        return QVariant(QString::number(val, 'f', 18));
-    }
-
     QString CurrencyModel::getCurrencyName(int index) const {
         if ( index < 0 ) {
             index = fIndex;
@@ -77,7 +64,7 @@ namespace Dbixwall {
         return "UNK";
     }
 
-    QVariant CurrencyModel::recalculate(const QVariant& dbix) const {
+    QVariant CurrencyModel::recalculate(const QVariant dbix) const {
         if ( fIndex == 0 ) {
             return dbix; // no change
         }
@@ -100,13 +87,11 @@ namespace Dbixwall {
 
         QJsonObject objectJson;
         QJsonArray currencies;
-        currencies.append(QJsonValue(QString("BTC")));
         currencies.append(QJsonValue(QString("EUR")));
         currencies.append(QJsonValue(QString("CAD")));
         currencies.append(QJsonValue(QString("USD")));
         currencies.append(QJsonValue(QString("GBP")));
         objectJson["currencies"] = currencies;
-        objectJson["version"] = 2;
         const QByteArray data = QJsonDocument(objectJson).toJson();
 
         DbixLog::logMsg("HTTP Post request: " + data, LS_Debug);
@@ -151,34 +136,6 @@ namespace Dbixwall {
 
         endResetModel();
         emit currencyChanged();
-        emit helperIndexChanged(getHelperIndex());
-    }
-
-    int CurrencyModel::getHelperIndex() const
-    {
-        const QSettings settings;
-
-        const QString currencyName = settings.value("currencies/helper", "USD").toString();
-        int index = 0;
-
-        foreach ( const CurrencyInfo& info, fCurrencies ) {
-            if ( info.name() == currencyName ) {
-                return index;
-            }
-            index++;
-        }
-
-        return 0;
-    }
-
-    const QString CurrencyModel::getHelperName() const
-    {
-        int index = getHelperIndex();
-        if ( index >= 0 && index < fCurrencies.size() ) {
-            return fCurrencies.at(index).name();
-        }
-
-        return QString();
     }
 
     void CurrencyModel::setCurrencyIndex(int index) {
@@ -186,17 +143,6 @@ namespace Dbixwall {
             fIndex = index;
             emit currencyChanged();
         }
-    }
-
-    void CurrencyModel::setHelperIndex(int index)
-    {
-        if ( index < 0 || index >= fCurrencies.size() ) {
-            return;
-        }
-
-        const QString name = fCurrencies.at(index).name();
-        QSettings settings;
-        settings.setValue("currencies/helper", name);
     }
 
     int CurrencyModel::getCurrencyIndex() const {

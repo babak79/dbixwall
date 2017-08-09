@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file FirstTimeDialog.qml
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2016
  *
  * Filter Details dialog
@@ -42,9 +42,9 @@ Window {
 
     function open( index ) {
         if ( index >= 0 ) {
-            nameField.text = filterModel.getName(index)
-            contractField.currentIndex = contractModel.getIndex(filterModel.getContract(index))
-            activeField.checked = filterModel.getActive(index)
+            nameField.text = filterModel.getName(index);
+            //contractField = filterModel.getName(index);
+            activeField.checked = filterModel.getActive(index);
             topicsField.text = filterModel.getTopics(index)
         }
 
@@ -179,7 +179,7 @@ Window {
                 var topics = topicsField.text.length ? topicsField.text.split(",") : []
                 for ( var i = 0; i < topics.length; i++ ) {
                     var topic = topics[i];
-                    if ( topic !== "null" && !topic.match(/0x[a-f,A-Z,0-9]{32}/) ) {
+                    if ( !topic.match(/0x[a-f,A-Z,0-9]{32}/) ) {
                         result.error = qsTr("Filter topic " + topic + " invalid")
                         return result
                     }

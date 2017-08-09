@@ -29,24 +29,6 @@ Rectangle {
         hideTimer.stop()
     }
 
-    function button_msg(code) {
-        var code_map = {
-            1:  qsTr("Other", "button request type"),
-            2:  qsTr("Fee over treshold", "button request type"),
-            3:  qsTr("Confirm output", "button request type"),
-            4:  qsTr("Reset device", "button request type"),
-            5:  qsTr("Confirm word", "button request type"),
-            6:  qsTr("Wipe device", "button request type"),
-            7:  qsTr("Protect Call", "button request type"),
-            8:  qsTr("Sign Transaction", "button request type"),
-            9:  qsTr("Firmware check", "button request type"),
-            10: qsTr("Address", "button request type"),
-            11: qsTr("Public Key", "button request type"),
-        }
-
-        return qsTr("Confirm operation on TREZOR: ") + code_map[code]
-    }
-
     Behavior on opacity {NumberAnimation{}}
 
     anchors.centerIn: parent
@@ -56,7 +38,8 @@ Rectangle {
     color: myPalette.highlight
 
     height: 1 * dpi
-    width: parent.width * 0.95
+
+    width: Math.max(label.paintedWidth + 1 * dpi, 4 * dpi)
 
     Timer {
         id: showTimer
@@ -86,11 +69,9 @@ Rectangle {
         onClicked: hide()
     }
 
-    Text {
+    Label {
         id: label
         color: "black"
-        wrapMode: Text.Wrap
-        width: parent.width * 0.9
         anchors.centerIn: parent
         verticalAlignment: Text.AlignVCenter
         horizontalAlignment: Text.AlignHCenter

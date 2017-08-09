@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file currencymodel.h
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2016
  *
  * Currency model header
@@ -37,35 +37,27 @@ namespace Dbixwall {
         Q_OBJECT
         Q_PROPERTY(QString currencyName READ getCurrencyName() NOTIFY currencyChanged FINAL)
         Q_PROPERTY(int count READ getCount NOTIFY currencyChanged FINAL)
-        Q_PROPERTY(int helperIndex READ getHelperIndex NOTIFY helperIndexChanged)
-        Q_PROPERTY(QString helperName READ getHelperName NOTIFY helperIndexChanged)
     public:
         CurrencyModel();
         QHash<int, QByteArray> roleNames() const;
         int rowCount(const QModelIndex & parent = QModelIndex()) const;
         QVariant data(const QModelIndex & index, int role = Qt::DisplayRole) const;
-        QVariant recalculate(const QVariant& dbix) const;
+        QVariant recalculate(const QVariant dbix) const;
         int getCount() const;
         Q_INVOKABLE QString getCurrencyName(int index = -1) const;
         Q_INVOKABLE void loadCurrencies();
         Q_INVOKABLE void setCurrencyIndex(int index);
-        Q_INVOKABLE void setHelperIndex(int index);
         Q_INVOKABLE int getCurrencyIndex() const;
         Q_INVOKABLE double getCurrencyPrice(int index) const;
-        Q_INVOKABLE QVariant recalculateToHelper(const QVariant& dbix) const;
     public slots:
         void loadCurrenciesDone(QNetworkReply *reply);
     signals:
         void currencyChanged();
-        void helperIndexChanged(int index);
     private:
         CurrencyInfos fCurrencies;
         QNetworkAccessManager fNetManager;
         int fIndex;
         QTimer fTimer;
-
-        int getHelperIndex() const;
-        const QString getHelperName() const;
     };
 
 }

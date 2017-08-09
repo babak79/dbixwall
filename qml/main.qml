@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file main.qml
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2015
  *
  * Main app window
@@ -41,7 +41,7 @@ ApplicationWindow {
         setY(Screen.height / 2.0 - height / 2.0)
     }
 
-    title: qsTr("Dbix Dubaicoin Wallet") + (ipc.testnet ? " !TESTNET! " : " ") + Qt.application.version + ' [' + ipc.clientVersion + ']'
+    title: qsTr("Arabianchain Dubaicoin Wallet") + (ipc.testnet ? " !TESTNET! " : " ") + Qt.application.version + ' [' + ipc.clientVersion + ']'
 
     Timer {
         id: closeTimer
@@ -58,50 +58,6 @@ ApplicationWindow {
 
         if ( !close.accepted && !closeTimer.running ) {
             closeTimer.start()
-        }
-    }
-
-    PinMatrixDialog {
-        id: pinMatrixDialog
-        // visible: true
-    }
-
-    ButtonRequestDialog {
-        id: buttonRequestDialog
-    }
-
-    PasswordDialog {
-        id: trezorPasswordDialog
-        title: qsTr("TREZOR passphrase")
-        msg: qsTr("Please provide your TREZOR passphrase")
-
-        onAccepted: {
-            trezor.submitPassphrase(password)
-        }
-
-        onRejected: {
-            trezor.cancel()
-        }
-    }
-
-    // Trezor main connections
-    Connections {
-        target: trezor
-        onMatrixRequest: pinMatrixDialog.open()
-        onButtonRequest: {
-            if ( code != 8 ) { // tx signing handled in signing windows
-                badge.show(badge.button_msg(code))
-            }
-        }
-        onPassphraseRequest: trezorPasswordDialog.open()
-        onFailure: {
-            errorDialog.msg = "TREZOR: " + error
-            errorDialog.open()
-        }
-        onError: {
-            log.log(error, 3)
-            errorDialog.msg = "TREZOR critical error: " + error
-            errorDialog.open()
         }
     }
 
@@ -162,13 +118,6 @@ ApplicationWindow {
             transactionModel.checkVersion()
         }
     }
-
-    /*TrezorImportDialog {
-        id: trezorImportDialog
-        width: 5 * dpi
-        yesText: qsTr("Import")
-        noText: qsTr("Cancel")
-    }*/
 
     ErrorDialog {
         id: errorDialog
@@ -247,8 +196,6 @@ ApplicationWindow {
             onWalletExportedEvent: badge.show(qsTr("Wallet successfully exported"))
             onWalletImportedEvent: badge.show(qsTr("Wallet succesfully imported"))
             onWalletErrorEvent: badge.show(qsTr("Error on wallet import/export: " + error))
-            /*onPromptForTrezorImport: trezorImportDialog.open(qsTr("Detected TREZOR device with unimported accounts.") + '<br><a href="http://www.dbixwall.com/faq/#importaccount">' + qsTr("Import addresses from TREZOR?") + '</a>')
-            onAccountsRemoved: badge.show(qsTr("TREZOR accounts removed"))*/
         }
 
         Connections {
@@ -270,7 +217,11 @@ ApplicationWindow {
     }
 
     /*FirstTimeDialog {
-        visible: !settings.contains("program/v2firstrun")
+        visible: !settings.contains("program/firstrun")
+    }
+
+    HardForkDialog {
+        visible: !ipc.busy && !ipc.starting && !settings.contains("gdbix/hardfork") && settings.contains("program/firstrun") && ipc.hardForkReady
     }*/
 
     TabView {
@@ -288,10 +239,6 @@ ApplicationWindow {
         SettingsTab {}
 
         InfoTab {}
-    }
-
-    BaseDialog {
-        id: trezorDialog
     }
 
     statusBar: StatusBar {
@@ -352,26 +299,14 @@ ApplicationWindow {
         }
 
         Text {
-            anchors {
-                verticalCenter: parent.verticalCenter
-                left: leftButtonsRow.right
-                right: rightButtonsRow.left
-            }
-
+            anchors.centerIn: parent
             visible: !ipc.syncing
-            horizontalAlignment: Text.AlignHCenter
             text: ipc.closing ? qsTr("Closing app") : (ipc.starting ? qsTr("Starting Gdbix...") : qsTr("Ready"))
         }
 
         Text {
-            anchors {
-                verticalCenter: parent.verticalCenter
-                left: leftButtonsRow.right
-                right: rightButtonsRow.left
-            }
-
+            anchors.centerIn: parent
             visible: ipc.syncing
-            horizontalAlignment: Text.AlignHCenter
             text: qsTr("Synchronized ") + Math.max(0, ipc.currentBlock - ipc.startingBlock) + qsTr(" out of ") + Math.max(0, ipc.highestBlock - ipc.startingBlock) + qsTr(" blocks")
         }
 
@@ -389,56 +324,26 @@ ApplicationWindow {
         Row {
             id: rightButtonsRow
             anchors.right: parent.right
-
-            /*ToolButton {
-                iconSource: "/images/trezor"
-                height: 32
-                width: 32
-                enabled: trezor.initialized
-                tooltip: "TREZOR: " + (trezor.initialized ? qsTr("initialized") : (trezor.present ? qsTr("present") : qsTr("disconnected")))
-                onClicked: {
-                    trezorDialog.title = "TREZOR"
-                    trezorDialog.msg = "TREZOR " + qsTr("device id: ") + trezor.deviceID
-                    trezorDialog.open()
-                }
-            }*/
-
             ToolButton {
                 function getQuality(cs, pc) {
-                    if ( ipc.thinClient ) {
-                        return 3
-                    }
-
                     if ( cs <= 0 ) {
-                        return 0 // disconnected
+                        return 0; // disconnected
                     }
 
                     if ( pc > 6 ) {
-                        return 3 // high
+                        return 3; // high
                     } else if ( pc > 3 ) {
-                        return 2 // medium
+                        return 2; // medium
                     } else {
-                        return 1 // low
+                        return 1; // low
                     }
-                }
-
-                function connectionState(cs, pc) {
-                    if ( cs <= 0 ) {
-                        return qsTr("disconnected", "connection state")
-                    }
-
-                    if ( ipc.thinClient ) {
-                        return qsTr("connected to remote node", "connection state")
-                    }
-
-                    return qsTr("connected with ", "connection state connected with X peers") + ipc.peerCount + qsTr(" peers", "connection status, peercount")
                 }
 
                 iconSource: "/images/connected" + getQuality(ipc.connectionState, ipc.peerCount)
                 height: 32
                 width: 32
                 enabled: !ipc.starting
-                tooltip: qsTr("Connection state: ") + connectionState(ipc.connectionState, ipc.peerCount)
+                tooltip: qsTr("Connection state: ") + (ipc.connectionState > 0 ? (qsTr("connected with ", "connection state connected with X peers") + ipc.peerCount + qsTr(" peers", "connection status, peercount")) : qsTr("disconnected", "connection state"))
                 onClicked: {
                     ipc.connectToServer()
                 }

@@ -44,8 +44,7 @@ SOURCES += src/main.cpp \
     src/contractmodel.cpp \
     src/contractinfo.cpp \
     src/eventmodel.cpp \
-    src/filtermodel.cpp \
-    src/dubaicoin/tx.cpp 
+    src/filtermodel.cpp
 
 RESOURCES += qml/qml.qrc
 
@@ -81,6 +80,5 @@ HEADERS += \
     src/contractinfo.h \
     src/eventmodel.h \
     src/filtermodel.h \
-    src/dubaicoin/tx.h \
-    src/dubaicoin/keccak.h
+	src/dubaicoin/keccak.h
 

@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file FirstTimeDialog.qml
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2016
  *
  * FirstTime dialog
@@ -52,20 +52,6 @@ Window {
         cccTab.children[0].contractIndex = index
         tabs.currentIndex = 0
         show()
-    }
-
-    Badge {
-        id: ccBadge
-        z: 999
-
-        Connections {
-            target: trezor
-            onButtonRequest: {
-                if ( code === 8 && contractCalls.visible ) {
-                    ccBadge.show(ccBadge.button_msg(code))
-                }
-            }
-        }
     }
 
     TabView {

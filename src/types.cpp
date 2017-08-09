@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file types.cpp
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2015
  *
  * Types implementation
@@ -33,7 +33,7 @@ namespace Dbixwall {
 
     const QString DefaultIPCPath(const QString& dataDir, bool testnet) {
     #ifdef Q_OS_WIN32
-        Q_UNUSED(dataDir);
+		Q_UNUSED(dataDir);
         Q_UNUSED(testnet);
         return "\\\\.\\pipe\\gdbix.ipc";
     #else
@@ -97,50 +97,39 @@ namespace Dbixwall {
         return QVariant();
     }
 
-    double CurrencyInfo::recalculate(const double dbix) const {
+    double CurrencyInfo::recalculate(const float dbix) const {
         return dbix * fPrice;
-    }
-
-    const QString CurrencyInfo::name() const
-    {
-        return fName;
     }
 
 
 // ***************************** TransactionInfo ***************************** //
 
-    AccountInfo::AccountInfo(const QString &hash, const QString &alias, const QString &deviceID,
-                             const QString &balance, quint64 transCount, const QString& hdPath, int network) :
-         fHash(Helpers::vitalizeAddress(hash)), fAlias(alias), fDeviceID(deviceID),
-         fBalance(balance), fTransCount(transCount), fHDPath(hdPath), fNetwork(network)
-    {
-        // old alias compatibility
-        if ( alias.isEmpty() ) {
-            QSettings settings;
-            const QString lowerHash = hash.toLower();
+    static int ACC_INDEX = 0;
 
-            if ( settings.contains("alias/" + lowerHash) ) {
-                fAlias = settings.value("alias/" + lowerHash, QString()).toString();
-                settings.remove("alias/" + lowerHash);
-            }
+    AccountInfo::AccountInfo(const QString& hash, const QString& balance, quint64 transCount) :
+        fIndex(ACC_INDEX++), fHash(Helpers::vitalizeAddress(hash)), fBalance(balance), fTransCount(transCount)
+    {
+        const QSettings settings;
+        const QString lowerHash = hash.toLower();
+
+        if ( settings.contains("alias/" + lowerHash) ) {
+            fAlias = settings.value("alias/" + lowerHash, QString()).toString();
         }
     }
 
-    const QVariant AccountInfo::value(const int role) const {
+    //const QVariant AccountInfo::value(const int role) const {
+	const QVariant AccountInfo::value(const int role) const {
         const QSettings settings;
         const QString defaultKey = "accounts/default/" + Helpers::networkPostfix(fNetwork);
         const QString defaultAccount = settings.value(defaultKey).toString();
-
+		
         switch ( role ) {
-            case HashRole: return QVariant(fHash);
-            case DefaultRole: return QVariant(fHash.toLower() == defaultAccount ? "✓" : "");
-            case BalanceRole: return QVariant(fBalance);
-            case TransCountRole: return QVariant(fTransCount);
-            case SummaryRole: return QVariant(getSummary());
-            case AliasRole: return QVariant(fAlias.isEmpty() ? fHash : fAlias);
-            case DeviceRole: return QVariant(fDeviceID);
-            case DeviceTypeRole: return QVariant(fDeviceID == "gdbix" ? "" : "⊡");
-            case HDPathRole: return QVariant(fHDPath);
+			case HashRole: return QVariant(fHash);
+			case BalanceRole: return QVariant(fBalance);
+			case TransCountRole: return QVariant(fTransCount);
+			case SummaryRole: return QVariant(value(AliasRole).toString() + " [" + fBalance + "]");
+			case AliasRole: return QVariant(fAlias.isEmpty() ? fHash : fAlias);
+			case IndexRole: return QVariant(fIndex);
         }
 
         return QVariant();
@@ -154,57 +143,11 @@ namespace Dbixwall {
         fTransCount = count;
     }
 
-    void AccountInfo::setDeviceID(const QString &deviceID)
-    {
-        fDeviceID = deviceID;
-    }
-
-    const QString AccountInfo::deviceID() const
-    {
-        return fDeviceID;
-    }
-
-    void AccountInfo::setAlias(const QString& name) {
+    void AccountInfo::alias(const QString& name) {
         QSettings settings;
 
         settings.setValue("alias/" + fHash.toLower(), name);
         fAlias = name;
-    }
-
-    const QString AccountInfo::alias() const
-    {
-        return fAlias;
-    }
-
-    const QString AccountInfo::hash() const
-    {
-        return fHash;
-    }
-
-    quint64 AccountInfo::transactionCount() const
-    {
-        return fTransCount;
-    }
-
-    const QJsonObject AccountInfo::toJson() const
-    {
-        QJsonObject result;
-        result["hash"] = fHash.toLower();
-        result["alias"] = fAlias;
-        result["deviceID"] = fDeviceID;
-        result["HDPath"] = fHDPath;
-
-        return result;
-    }
-
-    const QString AccountInfo::HDPath() const
-    {
-        return fHDPath;
-    }
-
-    const QString AccountInfo::getSummary() const
-    {
-        return (fHDPath.isEmpty() ? "   " : "⊡ ") +  value(AliasRole).toString() + " [" + fBalance + "]";
     }
 
 // ***************************** TransactionInfo ***************************** //

@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file transactionmodel.h
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2015
  *
  * Transaction model header
@@ -53,12 +53,7 @@ namespace Dbixwall {
         int rowCount(const QModelIndex & parent = QModelIndex()) const;
         QVariant data(const QModelIndex & index, int role = Qt::DisplayRole) const;
         int containsTransaction(const QString& hash);
-
-        Q_INVOKABLE void sendTransaction(const QString& password, const QString& from, const QString& to,
-                             const QString& value, quint64 nonce, const QString& gas = QString(),
-                             const QString& gasPrice = QString(), const QString& data = QString());
-
-        Q_INVOKABLE const QString estimateTotal(const QString& value, const QString& gas, const QString& gasPrice) const;
+        Q_INVOKABLE const QString estimateTotal(const QString& value, const QString& gas) const;
         Q_INVOKABLE void loadHistory();
         Q_INVOKABLE const QString getHash(int index) const;
         Q_INVOKABLE const QString getSender(int index) const;
@@ -72,18 +67,17 @@ namespace Dbixwall {
         quint64 getFirstBlock() const;
         quint64 getLastBlock() const;
     public slots:
-        void onRawTransaction(const Dubaicoin::Tx& tx);
-    private slots:
         void connectToServerDone();
-        void getAccountsDone(const QStringList& list);
+        void getAccountsDone(const AccountList& list);
         void getBlockNumberDone(quint64 num);
         void getGasPriceDone(const QString& num);
         void estimateGasDone(const QString& num);
         void sendTransactionDone(const QString& hash);
-        void signTransactionDone(const QString& hash);
+        void sendTransaction(const QString& password, const QString& from, const QString& to,
+                             const QString& value, const QString& gas = QString(),
+                             const QString& gasPrice = QString(), const QString& data = QString());
         void newTransaction(const TransactionInfo& info);
         void newBlock(const QJsonObject& block);
-        void syncingChanged(bool syncing);
         void refresh();
         void loadHistoryDone(QNetworkReply* reply);
         void checkVersionDone(QNetworkReply *reply);
@@ -113,7 +107,6 @@ namespace Dbixwall {
         int getInsertIndex(const TransactionInfo& info) const;
         void addTransaction(const TransactionInfo& info);
         void storeTransaction(const TransactionInfo& info);
-        void refreshPendingTransactions();
     };
 
 }

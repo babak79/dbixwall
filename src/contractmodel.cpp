@@ -12,7 +12,7 @@
     along with dbixwall. If not, see <http://www.gnu.org/licenses/>.
 */
 /** @file contractmodel.cpp
- * @author Ales Katona <almindor@gmail.com>
+ * @author Ales Katona <almindor@gmail.com> Etherwall
  * @date 2016
  *
  * Contract model body
@@ -46,7 +46,10 @@ namespace Dbixwall {
 
     QHash<int, QByteArray> ContractModel::roleNames() const {
         QHash<int, QByteArray> roles;
-        roles[ContractNameRole] = "name";
+        //roles[ContractRoles::ContractNameRole] = "name";
+        //roles[ContractRoles::AddressRole] = "address";
+        //roles[ContractRoles::ABIRole] = "abi";
+		roles[ContractNameRole] = "name";
         roles[AddressRole] = "address";
         roles[ABIRole] = "abi";
 
@@ -168,17 +171,6 @@ namespace Dbixwall {
         return fList.at(index).name();
     }
 
-    int ContractModel::getIndex(const QString name) const
-    {
-        for ( int i = 0; i < fList.size(); i++ ) {
-            if ( fList.at(i).name() == name ) {
-                return i;
-            }
-        }
-
-        return -1;
-    }
-
     const QString ContractModel::getAddress(int index) const {
         if ( index < 0 || index >= fList.size() ) {
             return QString();
@@ -245,9 +237,6 @@ namespace Dbixwall {
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
         QJsonObject objectJson;
         objectJson["address"] = address;
-        if ( fIpc.getTestnet() ) {
-            objectJson["testnet"] = true;
-        }
         const QByteArray data = QJsonDocument(objectJson).toJson();
 
         DbixLog::logMsg("HTTP Post request: " + data, LS_Debug);
